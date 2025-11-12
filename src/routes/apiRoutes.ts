@@ -19,10 +19,10 @@ export default (app: any) => {
   // Ruta raíz para información de la aplicación
   app.get('/', () => {
     return {
-      name: pkg.name,
-      version: pkg.version,
-      description: pkg.description,
-      author: pkg.author
+      name: "valya_agent_crm",
+      version:"1.0.0",
+      description: "Agente langgraph Valya para Vendedores B2B",
+      author:"Tu Profe de IA"
     };
   });
 
