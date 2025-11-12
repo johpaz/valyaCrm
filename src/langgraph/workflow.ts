@@ -3,10 +3,7 @@ import logger from '../utils/logger';
 
 // Variables globales para caching de modelos de Gemini
 let genAI: any = null;
-let intentModel: any = null;
 let conversationalModel: any = null;
-let crmModel: any = null;
-let fastResponseModel: any = null;
 
 // Función para inicializar modelos una vez (lazy loading)
 async function initModels() {
@@ -15,37 +12,11 @@ async function initModels() {
     const { GoogleGenerativeAI } = await import('@google/generative-ai');
     genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
-    intentModel = genAI.getGenerativeModel({
-      model: "gemini-2.5-flash",
-      generationConfig: {
-        temperature: 0.1,
-        maxOutputTokens:10000,
-      }
-    });
-
     conversationalModel = genAI.getGenerativeModel({
       model: "gemini-2.5-flash",
       generationConfig: {
         temperature: 0.3,
         maxOutputTokens: 1000,
-      }
-    });
-
-    crmModel = genAI.getGenerativeModel({
-      model: "gemini-2.5-pro",
-      generationConfig: {
-        temperature: 0.1,
-        maxOutputTokens: 10000,
-      }
-    });
-
-    fastResponseModel = genAI.getGenerativeModel({
-      model: "gemini-1.5-flash",
-      generationConfig: {
-        temperature: 0.2,
-        topK: 1,
-        topP: 0.9,
-        maxOutputTokens: 200,
       }
     });
 

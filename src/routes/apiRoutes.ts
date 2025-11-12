@@ -3,6 +3,7 @@ import VendorExperienceService from '../services/vendorExperienceService.js';
 import CRMService from '../services/crmService.js'; // Necesario para las estadísticas
 import { executeTool } from '../services/toolsManager.js';
 import crmRoutes from './crmRoutes.js';
+const pkg = require('../../package.json');
 
 interface RouteParams {
   phoneNumber: string;
@@ -19,6 +20,16 @@ const crmService = new CRMService();
 
 
 export default (app: any) => {
+  // Ruta raíz para información de la aplicación
+  app.get('/', () => {
+    return {
+      name: pkg.name,
+      version: pkg.version,
+      description: pkg.description,
+      author: pkg.author
+    };
+  });
+
   // Ruta para estadísticas del vendedor
   app.get('/vendor/stats/:phoneNumber', async ({ params }: { params: RouteParams }) => {
     try {
