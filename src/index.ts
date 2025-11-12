@@ -24,6 +24,15 @@ const PORT = process.env.PORT || 3000;
 app.use(helmet());
 app.use(cors());
 
+// Ruta raíz
+app.get('/', () => {
+  return {
+    name: 'whatsapp-gemini-agent-crm-b2b',
+    version: '4.0.0',
+    description: 'Agente A2A WhatsApp-Gemini especializado para Vendedores2B Valua'
+  };
+});
+
 // Rutas
 webhookRoutes(app);
 apiRoutes(app);
