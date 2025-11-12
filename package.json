@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "bun --hot src/index.ts",
     "build": "bun build --target bun --outfile dist/index.js src/index.ts",
-    "start": "bun src/index.ts",
+    "start": "bun dist/index.js",
     "test": "bun test",
     "lint": "eslint src/**/*.ts"
   },
