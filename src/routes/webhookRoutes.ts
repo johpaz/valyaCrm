@@ -1,3 +1,4 @@
+import { Elysia } from 'elysia';
 import logger from '../utils/logger';
 import whatsappService from '../services/whatsappService';
 import mediaService from '../services/mediaService';
@@ -90,9 +91,8 @@ async function processMessage(message: any) {
   }
 }
 
-export default (app: any) => {
-  // Verificación del webhook de WhatsApp
-  app.get('/webhook', ({ query }: { query: any }) => {
+const webhookRoutes = new Elysia()
+  webhookRoutes.get('/webhook', ({ query }: { query: any }) => {
     const mode = query['hub.mode'];
     const token = query['hub.verify_token'];
     const challenge = query['hub.challenge'];
@@ -107,7 +107,7 @@ export default (app: any) => {
   });
 
   // Recepción de mensajes de WhatsApp
-  app.post('/webhook', async ({ body }: { body: any }) => {
+  webhookRoutes.post('/webhook', async ({ body }: { body: any }) => {
     if (body.object === 'whatsapp_business_account') {
       const changes = body.entry?.[0]?.changes?.[0];
       if (changes?.field === 'messages') {
@@ -129,4 +129,5 @@ export default (app: any) => {
       return new Response('', { status: 404 });
     }
   });
-};
+
+export default webhookRoutes;

@@ -32,8 +32,7 @@ app.get('/', () => {
   };
 });
 
-// Rutas
-webhookRoutes(app);
+
 
 const apiVersion = 'v1';
 app.group(`/api/${apiVersion}`, (app) =>
