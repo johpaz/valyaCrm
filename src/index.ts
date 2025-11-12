@@ -34,12 +34,18 @@ app.get('/', () => {
 
 // Rutas
 webhookRoutes(app);
-app.group('/api/reports', reportRoutes);
-app.group('/api/dashboard', reportDash);
-app.group('/api/debug', debugRouter);
-app.group('/api/calendar', calendarRoutes);
-app.group('/api', healthRoutes);
-app.group('/api', crmRoutes);
+
+const apiVersion = 'v1';
+app.group(`/api/${apiVersion}`, (app) =>
+  app
+    .use(reportRoutes)
+    .use(reportDash)
+    .use(debugRouter)
+    .use(calendarRoutes)
+    .use(healthRoutes)
+    .use(crmRoutes)
+    .use(webhookRoutes)
+);
 
 // Inicializar servidor
 app.listen(PORT, () => {

@@ -1,13 +1,9 @@
+import { Elysia } from 'elysia';
 import { getVendedorDashboard } from '../services/reportServices';
 
-interface RouteContext {
-  query: Record<string, string>;
-}
-
-export default (app: any) => {
-  app.get('/report', async (context: RouteContext): Promise<any> => {
-    return await getVendedorDashboard(context.query as any);
+const reportDash = new Elysia()
+  reportDash.get('/report', async ({ query }: { query: Record<string, string> }): Promise<any> => {
+    return await getVendedorDashboard(query as any);
   });
 
-  return app;
-};
+export default reportDash;

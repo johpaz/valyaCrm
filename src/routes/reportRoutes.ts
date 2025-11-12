@@ -1,16 +1,13 @@
+import { Elysia } from 'elysia';
 import logger from '../utils/logger';
 import crmService from '../services/crmService';
 import Admin from '../models/adminModel';
 import Vendedor from '../models/vendedorModel';
 import {  UnauthorizedError, NotFoundError, AppError } from '../types/index';
 
-interface RouteContext {
-  query: Record<string, string>;
-}
-
 // Función para simular autenticación y autorización
-const auth = async (context: RouteContext): Promise<{ _id: string; rol: string }> => {
-  const { userId } = context.query;
+const auth = async (query: Record<string, string>): Promise<{ _id: string; rol: string }> => {
+  const { userId } = query;
   if (!userId) {
     throw new UnauthorizedError('No autorizado. Se requiere userId.');
   }
@@ -52,35 +49,32 @@ const handleAuthError = (error: unknown): Response => {
   return new Response(JSON.stringify({ error: 'Error interno' }), { status: 500 });
 };
 
-export default (app: any) => {
-
-  app.get('/sales-over-time', async (context: RouteContext): Promise<Response | any> => {
+const reportRoutes = new Elysia()
+  reportRoutes.get('/sales-over-time', async ({ query }: { query: Record<string, string> }): Promise<Response | any> => {
     try {
-      const user = await auth(context);
-      const { startDate, endDate } = context.query;
+      const user = await auth(query);
+      const { startDate, endDate } = query;
       const vendedorId = user.rol === 'admin' ? undefined : user._id;
       const data = await crmService.getSalesOverTime(startDate!, endDate!, vendedorId);
       return data;
     } catch (error: unknown) {
       return handleAuthError(error);
     }
-  });
-
-  app.get('/pipeline-by-stage', async (context: RouteContext): Promise<Response | any> => {
+  })
+  reportRoutes.get('/pipeline-by-stage', async ({ query }: { query: Record<string, string> }): Promise<Response | any> => {
     try {
-      const user = await auth(context);
+      const user = await auth(query);
       const vendedorId = user.rol === 'admin' ? undefined : user._id;
       const data = await crmService.getPipelineByStage(vendedorId);
       return data;
     } catch (error: unknown) {
       return handleAuthError(error);
     }
-  });
-
-  app.get('/sales-by-vendor', async (context: RouteContext): Promise<Response | any> => {
+  })
+  reportRoutes.get('/sales-by-vendor', async ({ query }: { query: Record<string, string> }): Promise<Response | any> => {
     try {
-      const user = await auth(context);
-      const { startDate, endDate } = context.query;
+      const user = await auth(query);
+      const { startDate, endDate } = query;
       // Este reporte es para admins, no necesita vendedorId
       if (user.rol !== 'admin') {
         return new Response(JSON.stringify({ error: 'Acceso denegado. Solo para administradores.' }), { status: 403 });
@@ -90,23 +84,21 @@ export default (app: any) => {
     } catch (error: unknown) {
       return handleAuthError(error);
     }
-  });
-
-  app.get('/recent-activity', async (context: RouteContext): Promise<Response | any> => {
+  })
+  reportRoutes.get('/recent-activity', async ({ query }: { query: Record<string, string> }): Promise<Response | any> => {
     try {
-      const user = await auth(context);
-      const { limit } = context.query;
+      const user = await auth(query);
+      const { limit } = query;
       const vendedorId = user.rol === 'admin' ? undefined : user._id;
       const data = await crmService.getRecentActivity(vendedorId, limit);
       return data;
     } catch (error: unknown) {
       return handleAuthError(error);
     }
-  });
-
-  app.get('/entity-overview', async (context: RouteContext): Promise<Response | any> => {
+  })
+  reportRoutes.get('/entity-overview', async ({ query }: { query: Record<string, string> }): Promise<Response | any> => {
     try {
-      const user = await auth(context);
+      const user = await auth(query);
       if (user.rol !== 'admin') {
         return new Response(JSON.stringify({ error: 'Acceso denegado. Solo para administradores.' }), { status: 403 });
       }
@@ -117,5 +109,4 @@ export default (app: any) => {
     }
   });
 
-  return app;
-};
+export default reportRoutes;

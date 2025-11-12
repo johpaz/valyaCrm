@@ -1,7 +1,8 @@
+import { Elysia } from 'elysia';
 import healthCheckService from '../services/healthCheckService';
 
-export default (app: any) => {
-  app.get('/health', async (): Promise<any> => {
+const healthRoutes = new Elysia()
+  healthRoutes.get('/health', async (): Promise<any> => {
     try {
       const servicesStatus = await healthCheckService.checkServicesStatus();
       return {
@@ -19,5 +20,4 @@ export default (app: any) => {
     }
   });
 
-  return app;
-};
+export default healthRoutes;
