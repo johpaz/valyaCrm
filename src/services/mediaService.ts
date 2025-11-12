@@ -1,5 +1,4 @@
 // services/mediaService.ts
-import FormData from 'form-data';
 import * as fs from 'fs';
 import * as path from 'path';
 import logger from '../utils/logger';
@@ -113,7 +112,10 @@ class MediaService {
       }
 
       const form = new FormData();
-      form.append('file', fs.createReadStream(audioFilePath));
+      const buffer = fs.readFileSync(audioFilePath);
+      const mimeType = this.getMimeTypeFromPath(audioFilePath);
+      const blob = new Blob([buffer], { type: mimeType });
+      form.append('file', blob, path.basename(audioFilePath));
       form.append('model', 'whisper-1');
       form.append('language', 'es');
 
@@ -121,7 +123,6 @@ class MediaService {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-          ...form.getHeaders(),
         },
         body: form,
       });
