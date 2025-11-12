@@ -1,6 +1,6 @@
 import { Resend } from 'resend';
-import logger from '../utils/logger.js';
-import { EmailOptions } from '../types/index.js';
+import logger from '../utils/logger';
+import { EmailOptions } from '../types/index';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 

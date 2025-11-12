@@ -1,6 +1,6 @@
-import logger from '../utils/logger.js';
-import crmService from './crmService.js'; // Importamos el servicio de CRM
-import { Vendedor } from '../types/index.js';
+import logger from '../utils/logger';
+import crmService from './crmService'; // Importamos el servicio de CRM
+import { Vendedor } from '../types/index';
 
 interface CommandDetails {
   description: string;

@@ -1,5 +1,5 @@
 import logger from '../utils/logger';
-import Empresa from '../models/empresaModel.js';
+import Empresa from '../models/empresaModel';
 
 interface EmpresaQuery {
   nombre: string;

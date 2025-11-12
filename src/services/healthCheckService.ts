@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { HealthCheckResponse } from '../types/index.js';
+import { HealthCheckResponse } from '../types/index';
 
 class HealthCheckService {
   async checkServicesStatus(): Promise<HealthCheckResponse> {

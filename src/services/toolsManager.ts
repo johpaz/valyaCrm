@@ -1,6 +1,6 @@
 import { DynamicTool } from "@langchain/core/tools";
-import crmService from "./crmService.js";
-import * as calendarService from "./calendarService.js";
+import crmService from "./crmService";
+import * as calendarService from "./calendarService";
 
 const tools = [
   new DynamicTool({

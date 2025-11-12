@@ -1,8 +1,8 @@
-import logger from '../utils/logger.js';
-import VendorExperienceService from '../services/vendorExperienceService.js';
-import crmService from '../services/crmService.js'; // Necesario para las estadísticas
-import { executeTool } from '../services/toolsManager.js';
-import crmRoutes from './crmRoutes.js';
+import logger from '../utils/logger';
+import VendorExperienceService from '../services/vendorExperienceService';
+import crmService from '../services/crmService'; // Necesario para las estadísticas
+import { executeTool } from '../services/toolsManager';
+import crmRoutes from './crmRoutes';
 const pkg = require('../../package.json');
 
 interface RouteParams {

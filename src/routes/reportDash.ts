@@ -1,4 +1,4 @@
-import { getVendedorDashboard } from '../services/reportServices.js';
+import { getVendedorDashboard } from '../services/reportServices';
 
 interface RouteContext {
   query: Record<string, string>;

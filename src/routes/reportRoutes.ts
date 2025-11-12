@@ -1,8 +1,8 @@
-import logger from '../utils/logger.js';
-import crmService from '../services/crmService.js';
-import Admin from '../models/adminModel.js';
-import Vendedor from '../models/vendedorModel.js';
-import {  UnauthorizedError, NotFoundError, AppError } from '../types/index.js';
+import logger from '../utils/logger';
+import crmService from '../services/crmService';
+import Admin from '../models/adminModel';
+import Vendedor from '../models/vendedorModel';
+import {  UnauthorizedError, NotFoundError, AppError } from '../types/index';
 
 interface RouteContext {
   query: Record<string, string>;

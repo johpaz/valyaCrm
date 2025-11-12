@@ -1,5 +1,5 @@
-import logger from '../utils/logger.js';
-import crmService from '../services/crmService.js';
+import logger from '../utils/logger';
+import crmService from '../services/crmService';
 
 
 

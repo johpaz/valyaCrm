@@ -1,4 +1,4 @@
-import { buscarEmpresasPorNombre } from '../services/debugService.js';
+import { buscarEmpresasPorNombre } from '../services/debugService';
 
 interface EmpresaQuery {
   nombre: string;

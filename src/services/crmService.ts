@@ -1,13 +1,13 @@
-import logger from '../utils/logger.js';
-import Vendedor from '../models/vendedorModel.js';
-import Oportunidad from '../models/oportunidadModel.js';
-import VentaGanada from '../models/ventaGanadaModel.js';
-import Contacto from '../models/contactoModel.js';
-import Empresa from '../models/empresaModel.js';
-import Producto from '../models/productoModel.js';
-import Actividad from '../models/actividadModel.js';
+import logger from '../utils/logger';
+import Vendedor from '../models/vendedorModel';
+import Oportunidad from '../models/oportunidadModel';
+import VentaGanada from '../models/ventaGanadaModel';
+import Contacto from '../models/contactoModel';
+import Empresa from '../models/empresaModel';
+import Producto from '../models/productoModel';
+import Actividad from '../models/actividadModel';
 import mongoose from 'mongoose';
-import * as calendarService from './calendarService.js';
+import * as calendarService from './calendarService';
 import type {
   Vendedor as VendedorType,
   Empresa as EmpresaType,
@@ -16,7 +16,7 @@ import type {
   Producto as ProductoType,
   Actividad as ActividadType,
   VentaGanada as VentaGanadaType
-} from '../types/index.js';
+} from '../types/index';
 
 class CRMService {
 

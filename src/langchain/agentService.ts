@@ -1,6 +1,6 @@
-import { crmWorkflow, WorkflowState } from '../langgraph/workflow.js';
-import conversationService from '../services/conversationService.js'; // Importar conversationService
-import logger from '../utils/logger.js';
+import { crmWorkflow, WorkflowState } from '../langgraph/workflow';
+import conversationService from '../services/conversationService'; // Importar conversationService
+import logger from '../utils/logger';
 
 
 /**

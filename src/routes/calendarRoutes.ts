@@ -1,4 +1,4 @@
-import * as calendarService from '../services/calendarService.js';
+import * as calendarService from '../services/calendarService';
 
 interface AuthParams {
   sellerId: string;

@@ -1,7 +1,7 @@
 
-import logger from '../utils/logger.js';
-import Conversacion from '../models/conversacionModel.js';
-import crmService from './crmService.js';
+import logger from '../utils/logger';
+import Conversacion from '../models/conversacionModel';
+import crmService from './crmService';
 import type {
   Vendedor,
   ConversationHistory

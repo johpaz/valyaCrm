@@ -1,4 +1,4 @@
-import healthCheckService from '../services/healthCheckService.js';
+import healthCheckService from '../services/healthCheckService';
 
 export default (app: any) => {
   app.get('/health', async (): Promise<any> => {

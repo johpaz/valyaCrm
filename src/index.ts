@@ -2,17 +2,17 @@
 import { Elysia } from 'elysia';
 import cors from '@elysiajs/cors';
 import { helmet } from 'elysia-helmet';
-import logger from './utils/logger.js';
-import connectDB from './config/database.js';
-import webhookRoutes from './routes/webhookRoutes.js';
-import apiRoutes from './routes/apiRoutes.js';
-import mediaService from './services/mediaService.js';
-import crmRoutes from './routes/crmRoutes.js';
-import reportRoutes from './routes/reportRoutes.js';
-import reportDash from './routes/reportDash.js';
-import debugRouter from './routes/debugRoutes.js';
-import calendarRoutes from './routes/calendarRoutes.js';
-import healthRoutes from './routes/healthRoutes.js';
+import logger from './utils/logger';
+import connectDB from './config/database';
+import webhookRoutes from './routes/webhookRoutes';
+import apiRoutes from './routes/apiRoutes';
+import mediaService from './services/mediaService';
+import crmRoutes from './routes/crmRoutes';
+import reportRoutes from './routes/reportRoutes';
+import reportDash from './routes/reportDash';
+import debugRouter from './routes/debugRoutes';
+import calendarRoutes from './routes/calendarRoutes';
+import healthRoutes from './routes/healthRoutes';
 
 // Conectar a la base de datos
 connectDB();
@@ -29,7 +29,7 @@ app.get('/', () => {
   return {
     name: 'whatsapp-gemini-agent-crm-b2b',
     version: '4.0.0',
-    description: 'Agente A2A WhatsApp-Gemini especializado para Vendedores2B Valua'
+    description: 'Agente Valya WhatsApp-Gemini especializado para Vendedores2B '
   };
 });
 
