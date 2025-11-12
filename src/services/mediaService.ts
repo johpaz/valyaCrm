@@ -15,6 +15,16 @@ interface MediaInfo {
   downloadedAt: Date;
 }
 
+interface MediaInfoResponse {
+  url: string;
+  mime_type: string;
+  file_size: number;
+}
+
+interface TranscriptionResponse {
+  text: string;
+}
+
 class MediaService {
   accessToken: string;
   mediaDir: string;
@@ -45,7 +55,8 @@ class MediaService {
         `https://graph.facebook.com/v23.0/${mediaId}`,
         { headers: { Authorization: `Bearer ${this.accessToken}` } }
       );
-      const { url: mediaUrl, mime_type: mimeType, file_size: fileSize } = await infoRes.json();
+      const mediaData = await infoRes.json() as MediaInfoResponse;
+      const { url: mediaUrl, mime_type: mimeType, file_size: fileSize } = mediaData;
 
       // 2) Descargar stream
       const fileRes = await fetch(mediaUrl, {
@@ -121,9 +132,9 @@ class MediaService {
         return this.simulateTranscription(audioFilePath);
       }
 
-      const json = await res.json();
-      logger.info(`Transcripción recibida (primeros 100 chars): ${json.text.slice(0, 100)}`);
-      return json.text;
+      const transcription = await res.json() as TranscriptionResponse;
+      logger.info(`Transcripción recibida (primeros 100 chars): ${transcription.text.slice(0, 100)}`);
+      return transcription.text;
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       logger.error(`transcribeAudio error: ${message}`);

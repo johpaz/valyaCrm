@@ -59,7 +59,7 @@ class WhatsAppService {
 
       const data = await response.json();
 
-      logger.info(`Mensaje enviado exitosamente a ${to}`, data);
+      logger.info(`Mensaje enviado exitosamente a ${to}: ${JSON.stringify(data)}`);
       return data;
     } catch (error) {
       logger.error(`Error enviando mensaje: ${(error as Error).message}`);
