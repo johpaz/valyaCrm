@@ -9,7 +9,6 @@ import mediaService from './services/mediaService';
 import crmRoutes from './routes/crmRoutes';
 import reportRoutes from './routes/reportRoutes';
 import reportDash from './routes/reportDash';
-import debugRouter from './routes/debugRoutes';
 import calendarRoutes from './routes/calendarRoutes';
 import healthRoutes from './routes/healthRoutes';
 
@@ -39,7 +38,6 @@ app.group(`/api/${apiVersion}`, (app) =>
   app
     .use(reportRoutes)
     .use(reportDash)
-    .use(debugRouter)
     .use(calendarRoutes)
     .use(healthRoutes)
     .use(crmRoutes)
