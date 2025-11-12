@@ -24,10 +24,10 @@ class MediaService {
     // En producción en Vercel conviene usar /tmp, en local la carpeta media
     this.mediaDir =
       process.env.NODE_ENV === 'production'
-        ? '/tmp/media'
+        ? '/tmp'
         : path.join(process.cwd(), 'media');
 
-    if (!fs.existsSync(this.mediaDir)) {
+    if (process.env.NODE_ENV !== 'production' && !fs.existsSync(this.mediaDir)) {
       fs.mkdirSync(this.mediaDir, { recursive: true });
     }
     logger.info('Servicio de Media inicializado');
@@ -62,7 +62,7 @@ class MediaService {
 
       const timestamp = Date.now();
       const ext = this.getExtensionFromMimeType(mimeType);
-      const fileName = `${mediaId}_${timestamp}${ext}`;
+      const fileName = `media_${mediaId}_${timestamp}${ext}`;
       const filePath = path.join(this.mediaDir, fileName);
 
       const writer = fs.createWriteStream(filePath);
@@ -273,9 +273,11 @@ class MediaService {
      try {
        const now = Date.now();
        fs.readdirSync(this.mediaDir).forEach(file => {
-         const fp = path.join(this.mediaDir, file);
-         const age = now - fs.statSync(fp).mtimeMs;
-         if (age > maxAgeHours * 3600 * 1000) this.cleanupFile(fp);
+         if (file.startsWith('media_')) {
+           const fp = path.join(this.mediaDir, file);
+           const age = now - fs.statSync(fp).mtimeMs;
+           if (age > maxAgeHours * 3600 * 1000) this.cleanupFile(fp);
+         }
        });
        logger.info('Limpieza de archivos antiguos completada');
      } catch (e: unknown) {
