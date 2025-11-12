@@ -2,7 +2,7 @@ import { Elysia } from 'elysia';
 import logger from '../utils/logger';
 import crmService from '../services/crmService';
 
-const crmRoutes = new Elysia()
+const crmRoutes = new Elysia({ prefix: '/crm' })
   crmRoutes.post('/vendedores', async ({ body }: { body: any }) => {
     try {
       const nuevoVendedor = await crmService.crearVendedor(body);

@@ -91,7 +91,7 @@ async function processMessage(message: any) {
   }
 }
 
-const webhookRoutes = new Elysia()
+const webhookRoutes = new Elysia({ prefix: '/webhook' })
   webhookRoutes.get('/webhook', ({ query }: { query: any }) => {
     const mode = query['hub.mode'];
     const token = query['hub.verify_token'];

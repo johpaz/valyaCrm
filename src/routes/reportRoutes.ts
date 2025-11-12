@@ -49,7 +49,7 @@ const handleAuthError = (error: unknown): Response => {
   return new Response(JSON.stringify({ error: 'Error interno' }), { status: 500 });
 };
 
-const reportRoutes = new Elysia()
+const reportRoutes = new Elysia({ prefix: '/reports' })
   reportRoutes.get('/sales-over-time', async ({ query }: { query: Record<string, string> }): Promise<Response | any> => {
     try {
       const user = await auth(query);

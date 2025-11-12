@@ -1,7 +1,7 @@
 import { Elysia } from 'elysia';
 import * as calendarService from '../services/calendarService';
 
-const calendarRoutes = new Elysia()
+const calendarRoutes = new Elysia({ prefix: '/calendar' })
   calendarRoutes.get('/auth/:sellerId', ({ params }: { params: Record<string, string> }) => {
     const { sellerId } = params;
     const authUrl = calendarService.getAuthorizationUrl(sellerId);
