@@ -1,5 +1,5 @@
 import logger from '../utils/logger.js';
-import CRMService from './crmService.js'; // Importamos el servicio de CRM
+import crmService from './crmService.js'; // Importamos el servicio de CRM
 import { Vendedor } from '../types/index.js';
 
 interface CommandDetails {
@@ -18,12 +18,12 @@ interface MessageAnalysis {
 }
 
 class VendorExperienceService {
-  crmService: CRMService;
+  crmService: any;
   vendorCommands: Map<string, CommandDetails>;
   clientInteractionPatterns: Map<RegExp, string>;
 
   constructor() {
-    this.crmService = new CRMService();
+    this.crmService = crmService;
     this.vendorCommands = new Map();
     this.clientInteractionPatterns = new Map();
     this.initializeVendorCommands();

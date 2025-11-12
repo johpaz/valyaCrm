@@ -1,8 +1,6 @@
 import { DynamicTool } from "@langchain/core/tools";
-import CRMService from "./crmService.js";
+import crmService from "./crmService.js";
 import * as calendarService from "./calendarService.js";
-
-const crmService = new CRMService();
 
 const tools = [
   new DynamicTool({
@@ -214,5 +212,5 @@ export function executeTool(toolName: string, args: any) {
   if (!tool) {
     throw new Error(`Tool ${toolName} not found`);
   }
-  return tool.func(args);
+  return tool.func(JSON.stringify(args));
 }

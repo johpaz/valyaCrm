@@ -1,13 +1,11 @@
 
 import logger from '../utils/logger.js';
 import Conversacion from '../models/conversacionModel.js';
-import CRMService from './crmService.js';
+import crmService from './crmService.js';
 import type {
   Vendedor,
   ConversationHistory
 } from '../types/index.js';
-
-const crmService = new CRMService();
 
 class ConversationService {
   private activeAgents: Map<string, any>; // Almacena el agente activo por userId

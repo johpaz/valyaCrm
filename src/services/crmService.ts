@@ -509,4 +509,5 @@ async buscarVendedorPorTelefono(phoneNumber: string): Promise<VendedorType | nul
   }
 }
 
-export default CRMService;
+const crmServiceInstance = new CRMService();
+export default crmServiceInstance;

@@ -1,6 +1,6 @@
 import logger from '../utils/logger.js';
 import VendorExperienceService from '../services/vendorExperienceService.js';
-import CRMService from '../services/crmService.js'; // Necesario para las estadísticas
+import crmService from '../services/crmService.js'; // Necesario para las estadísticas
 import { executeTool } from '../services/toolsManager.js';
 import crmRoutes from './crmRoutes.js';
 const pkg = require('../../package.json');
@@ -16,7 +16,6 @@ interface CommandBody {
 }
 
 const vendorExperience = new VendorExperienceService();
-const crmService = new CRMService();
 
 
 export default (app: any) => {

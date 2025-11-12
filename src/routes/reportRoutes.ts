@@ -1,5 +1,5 @@
 import logger from '../utils/logger.js';
-import CRMService from '../services/crmService.js';
+import crmService from '../services/crmService.js';
 import Admin from '../models/adminModel.js';
 import Vendedor from '../models/vendedorModel.js';
 import {  UnauthorizedError, NotFoundError, AppError } from '../types/index.js';
@@ -7,8 +7,6 @@ import {  UnauthorizedError, NotFoundError, AppError } from '../types/index.js';
 interface RouteContext {
   query: Record<string, string>;
 }
-
-const crmService = new CRMService();
 
 // Función para simular autenticación y autorización
 const auth = async (context: RouteContext): Promise<{ _id: string; rol: string }> => {

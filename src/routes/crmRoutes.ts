@@ -1,7 +1,5 @@
 import logger from '../utils/logger.js';
-import CRMService from '../services/crmService.js';
-
-const crmService = new CRMService();
+import crmService from '../services/crmService.js';
 
 
 
