@@ -5,7 +5,6 @@ import { helmet } from 'elysia-helmet';
 import logger from './utils/logger';
 import connectDB from './config/database';
 import webhookRoutes from './routes/webhookRoutes';
-import apiRoutes from './routes/apiRoutes';
 import mediaService from './services/mediaService';
 import crmRoutes from './routes/crmRoutes';
 import reportRoutes from './routes/reportRoutes';
@@ -35,7 +34,6 @@ app.get('/', () => {
 
 // Rutas
 webhookRoutes(app);
-apiRoutes(app);
 app.group('/api/reports', reportRoutes);
 app.group('/api/dashboard', reportDash);
 app.group('/api/debug', debugRouter);
