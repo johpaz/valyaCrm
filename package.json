@@ -1,0 +1,57 @@
+{
+  "name": "whatsapp-gemini-agent-crm-b2b",
+  "version": "4.0.0",
+  "description": "Agente A2A WhatsApp-Gemini especializado para Vendedores2B Valua",
+  "main": "index.ts",
+  "scripts": {
+    "dev": "bun --hot src/index.ts",
+    "build": "bun build --target bun --outfile dist/index.js src/index.ts",
+    "start": "bun src/index.ts",
+    "test": "bun test",
+    "lint": "eslint src/**/*.ts"
+  },
+  "keywords": [
+    "whatsapp",
+    "gemini",
+    "ai",
+    "agent",
+    "a2a",
+    "tuprofedeai",
+    "multimedia",
+    "transcription",
+    "vision",
+    "mongodb",
+    "conversation",
+    "tools"
+  ],
+  "author": "Tu Profe de IA",
+  "license": "ISC",
+  "dependencies": {
+    "@elysiajs/cors": "^1.0.0",
+    "@google/genai": "^1.29.0",
+    "@google/generative-ai": "0.24.1",
+    "@langchain/core": "^0.3.0",
+    "@langchain/langgraph": "^1.0.1",
+    "@langchain/mongodb": "^0.1.0",
+    "@langchain/community": "^0.3.0",
+    
+    "date-fns": "^4.1.0",
+    "dotenv": "^16.6.1",
+    "elysia": "^1.1.27",
+    "elysia-helmet": "^3.0.0",
+    "googleapis": "^154.0.0",
+    "langchain": "^0.3.30",
+    "mathjs": "^14.0.1",
+    "mongodb": "^6.10.0",
+    "mongoose": "^8.16.3",
+    "openai": "^4.104.0",
+    "pino": "10.1.0",
+    "pino-pretty": "13.1.2",
+    "resend": "^4.7.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  }
+}
