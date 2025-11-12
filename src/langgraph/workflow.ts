@@ -173,5 +173,3 @@ Responde de manera natural, como si estuvieras charlando con el vendedor.
 export const crmWorkflow = {
   invoke: runCRMWorkflow
 };
-
-logger.info('Simplified CRM Workflow initialized successfully');

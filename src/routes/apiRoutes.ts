@@ -3,7 +3,7 @@ import VendorExperienceService from '../services/vendorExperienceService';
 import crmService from '../services/crmService'; // Necesario para las estadísticas
 import { executeTool } from '../services/toolsManager';
 import crmRoutes from './crmRoutes';
-const pkg = require('../../package.json');
+import pkg from '../../package.json';
 
 interface RouteParams {
   phoneNumber: string;
@@ -14,9 +14,6 @@ interface CommandBody {
   command: string;
   params: Record<string, any>;
 }
-
-const vendorExperience = new VendorExperienceService();
-
 
 export default (app: any) => {
   // Ruta raíz para información de la aplicación
@@ -35,6 +32,7 @@ export default (app: any) => {
       const { phoneNumber } = params;
       console.log(phoneNumber);
 
+      const vendorExperience = new VendorExperienceService();
       const vendor = await vendorExperience.isAuthorizedVendor(phoneNumber);
       console.log(vendor);
 
@@ -55,6 +53,7 @@ export default (app: any) => {
   app.post('/vendor/command', async ({ body }: { body: CommandBody }) => {
     try {
       const { phoneNumber, command, params } = body;
+      const vendorExperience = new VendorExperienceService();
       const vendor = await vendorExperience.isAuthorizedVendor(phoneNumber);
       if (!vendor) {
         return new Response(JSON.stringify({ error: 'No autorizado como vendedor' }), { status: 403 });
