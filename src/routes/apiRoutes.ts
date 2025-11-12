@@ -16,15 +16,7 @@ interface CommandBody {
 }
 
 export default (app: any) => {
-  // Ruta raíz para información de la aplicación
-  app.get('/', () => {
-    return {
-      name: "valya_agent_crm",
-      version:"1.0.0",
-      description: "Agente langgraph Valya para Vendedores B2B",
-      author:"Tu Profe de IA"
-    };
-  });
+ 
 
   // Ruta para estadísticas del vendedor
   app.get('/vendor/stats/:phoneNumber', async ({ params }: { params: RouteParams }) => {
