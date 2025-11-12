@@ -1,5 +1,5 @@
 // services/mediaService.ts
-import * as FormData from 'form-data';
+import FormData from 'form-data';
 import * as fs from 'fs';
 import * as path from 'path';
 import logger from '../utils/logger';
@@ -112,7 +112,7 @@ class MediaService {
         return this.simulateTranscription(audioFilePath);
       }
 
-      const form = new (FormData as any)();
+      const form = new FormData();
       form.append('file', fs.createReadStream(audioFilePath));
       form.append('model', 'whisper-1');
       form.append('language', 'es');
@@ -173,7 +173,7 @@ class MediaService {
 
       const { GoogleGenerativeAI } = await import('@google/generative-ai');
       const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+      const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
       const prompt = `Analiza y describe en detalle la imagen. Si hay texto, transcríbelo. Responde en español.`;
       const imagePart = { inlineData: { data: base64, mimeType } };
@@ -253,7 +253,7 @@ class MediaService {
        'audio/wav': '.wav', 'image/jpeg': '.jpg', 'image/png': '.png',
        'image/gif': '.gif', 'image/webp': '.webp', 'video/mp4': '.mp4',
        'video/quicktime': '.mov', 'application/pdf': '.pdf',
-       'application/msword': '.doc', '.docx': '.docx', 'text/plain': '.txt'
+       'application/msword': '.doc', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx', 'text/plain': '.txt'
      };
      return map[mime] || '.bin';
    }
