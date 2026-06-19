@@ -1,8 +1,8 @@
 import { Elysia } from 'elysia';
 import healthCheckService from '../services/healthCheckService';
 
-const healthRoutes = new Elysia({ prefix: '/health' })
-  healthRoutes.get('/health', async (): Promise<any> => {
+const healthRoutes = new Elysia({ prefix: '/health' });
+healthRoutes.get('/', async (): Promise<any> => {
     try {
       const servicesStatus = await healthCheckService.checkServicesStatus();
       return {
