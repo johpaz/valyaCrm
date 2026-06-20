@@ -52,11 +52,11 @@ src/
 The server runs at http://localhost:3000 (port comes from 
 `process.env.PORT`, defaulting to 3000). Verify it is up:
 
-    curl -s http://localhost:3000/health/health
+    curl -s http://localhost:3000/health
 
 (The health route lives in src/routes/healthRoutes.ts: the Elysia 
-instance has prefix `/health` and the route path is `/health`, so the 
-full path is `/health/health`. It returns `status: 'UP'` plus per-service 
+instance has prefix `/health` and the route path is `/`, so the 
+full path is `/health`. It returns `status: 'UP'` plus per-service 
 status, or HTTP 503 if a service is unhealthy.)
 
 Verify MongoDB is running locally:
