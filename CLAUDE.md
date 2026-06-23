@@ -91,7 +91,7 @@ and updating pipeline status. Follow existing patterns in crmRoutes.ts when
 adding new routes.
 
 ## Per-repo docs
-This repo carries its own docs/ folders at the repo root: docs/discovery/, 
+This repo carries its own docs/ folders at the repo root: docs/audit/, 
 docs/plans/, docs/reports/, docs/releases/, docs/archive/. The shared 
 planning documents (build plan in docs/build-plan/, feature briefs in 
 docs/briefs/) live in the valya_front repository.
