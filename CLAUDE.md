@@ -52,12 +52,15 @@ src/
 The server runs at http://localhost:3000 (port comes from 
 `process.env.PORT`, defaulting to 3000). Verify it is up:
 
-    curl -s http://localhost:3000/health
+    curl -s http://localhost:3000/api/v1/health/
 
 (The health route lives in src/routes/healthRoutes.ts: the Elysia 
-instance has prefix `/health` and the route path is `/`, so the 
-full path is `/health`. It returns `status: 'UP'` plus per-service 
-status, or HTTP 503 if a service is unhealthy.)
+instance has prefix `/health` and the route path is `/`, and every 
+route module is mounted inside `app.group('/api/v1', ...)` in 
+src/index.ts — so the full path is `/api/v1/health/`. It returns 
+`status: 'UP'` plus per-service status, or HTTP 503 if a service is 
+unhealthy. Corrected 2026-09-18: this previously documented `/health`, 
+which omits the `/api/v1` group and returns 404.)
 
 Verify MongoDB is running locally:
 
@@ -68,7 +71,9 @@ services without approval.
 
 ## API conventions
 - Base framework: Elysia (similar to Express/Hono)
-- Routes are prefixed (e.g. /crm, /reportDash)
+- Every route module is mounted inside `app.group('/api/v1', ...)` in 
+  src/index.ts, so every real path begins with `/api/v1`
+- Each route module then adds its own prefix (e.g. /crm, /reportDash)
 - Existing endpoints use Spanish naming (vendedores, contactos, 
   oportunidades, actividades)
 - Maintain this naming convention for all new endpoints
@@ -78,11 +83,16 @@ This section is the single source of truth for the API surface — the
 frontend repo intentionally keeps no copy. The merge-documentation skill 
 appends new endpoints here.
 
-- POST /crm/vendedores — create salesperson
-- GET /crm/contactos/buscar — search contacts by name
-- GET /crm/actividades/buscar — search activities
-- GET /crm/oportunidades/buscar — search opportunities
-- GET /reportDash/report — fetch sales dashboard data for a salesperson
+- POST /api/v1/crm/vendedores — create salesperson
+- GET /api/v1/crm/contactos/buscar — search contacts by name
+- GET /api/v1/crm/actividades/buscar — search activities
+- GET /api/v1/crm/oportunidades/buscar — search opportunities
+- GET /api/v1/reportDash/report — fetch sales dashboard data for a 
+  salesperson
+
+(Paths corrected 2026-09-18 to include the `/api/v1` group prefix, 
+verified against src/index.ts and the route modules. They previously 
+omitted it, which is why the audit flagged them as wrong.)
 
 ## Integration notes
 The frontend (valya_front) needs to connect to these routes. New endpoints 
