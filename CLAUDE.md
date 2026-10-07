@@ -89,6 +89,9 @@ appends new endpoints here.
 - GET /api/v1/crm/oportunidades/buscar — search opportunities
 - GET /api/v1/reportDash/report — fetch sales dashboard data for a 
   salesperson
+- POST /api/v1/crm/vendedores/identificar — identify a salesperson by 
+  phone number in E.164 format; returns vendedorId, nombre and rol. 
+  404 if no match or the salesperson is inactive (added 2026-10-02)
 
 (Paths corrected 2026-09-18 to include the `/api/v1` group prefix, 
 verified against src/index.ts and the route modules. They previously 

@@ -25,7 +25,7 @@ class CRMService {
 async buscarVendedorPorTelefono(phoneNumber: string): Promise<VendedorType | null> {
   logger.info(`Buscando vendedor por teléfono: ${phoneNumber}`);
   // Aseguramos explícitamente que se seleccionen los campos necesarios
-  const vendedor = await Vendedor.findOne({ telefono: phoneNumber, activo: true }).select('nombre email');
+  const vendedor = await Vendedor.findOne({ telefono: phoneNumber, activo: true }).select('nombre email rol');
   if (vendedor) {
     logger.info(`Vendedor encontrado: ${vendedor.nombre} (Email: ${vendedor.email})`);
   } else {
