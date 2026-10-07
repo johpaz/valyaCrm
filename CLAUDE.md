@@ -84,7 +84,8 @@ frontend repo intentionally keeps no copy. The merge-documentation skill
 appends new endpoints here.
 
 - POST /api/v1/crm/vendedores — create salesperson. Body: nombre, 
-  email, telefono (E.164), rol. Generates a placeholder contrasena when 
+  email, telefono, rol. The frontend form sends telefono in E.164; the 
+  backend does not check the format. Generates a placeholder contrasena when 
   none is sent and never returns it; 409 with a Spanish message if the 
   email or telefono already exists (updated 2026-10-07)
 - GET /api/v1/crm/contactos/buscar — search contacts by name

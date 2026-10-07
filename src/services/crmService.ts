@@ -144,7 +144,11 @@ async buscarVendedorPorTelefono(phoneNumber: string): Promise<VendedorType | nul
       logger.info(`Nuevo vendedor creado: ${nuevoVendedor.nombre}`);
       return nuevoVendedor;
     } catch (error) {
-      logger.error(`Error creando vendedor: ${(error as Error).message}`);
+      // Un duplicado es un resultado esperado y su mensaje de MongoDB incluye el
+      // teléfono o el correo: no se registra aquí (la ruta registra solo el campo).
+      if (!campoDuplicadoVendedor(error)) {
+        logger.error(`Error creando vendedor: ${(error as Error).message}`);
+      }
       throw error;
     }
   }
