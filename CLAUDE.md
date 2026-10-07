@@ -106,8 +106,8 @@ adding new routes.
 ## Per-repo docs
 This repo carries its own docs/ folders at the repo root: docs/audit/, 
 docs/plans/, docs/reports/, docs/releases/, docs/archive/. The shared 
-planning documents (build plan in docs/build-plan/, feature briefs in 
-docs/briefs/) live in the valya_front repository.
+planning documents (project plan in docs/project-plan.md, one story per 
+feature in docs/stories/) live in the valya_front repository.
 
 ## Working rules
 - All code, comments, and identifiers are in Spanish, matching existing 
