@@ -138,6 +138,8 @@ feature in docs/stories/) live in the valya_front repository.
   - Exception: the end-session, code-review, and merge-documentation 
     skills make documentation-only commits/pushes autonomously after 
     passing their docs-only self-check
+- Pull requests: write the title and description in Spanish, so the 
+  backend developer (johpaz) can follow them.
 - If something goes wrong with git: stop immediately, do not fix git 
   errors by making more changes, explain in plain English, and wait 
   for instruction.
