@@ -118,8 +118,11 @@ describe('listarOportunidadesDeVendedor', () => {
     expect(String((find.mock.calls[0][0] as any).vendedorId)).toBe(VENDEDOR);
     expect(llamadas.sort).toEqual([[{ fechaActualizacion: -1 }]]);
     expect(llamadas.limit).toEqual([[20]]);
-    expect(llamadas.populate.map((p) => p[0])).toEqual(['empresaId', 'contactoId', 'productoId']);
-    expect(String(llamadas.populate[0][1])).not.toContain('embedding');
+    expect(llamadas.populate).toEqual([
+      ['empresaId', 'nombre sector ubicacion'],
+      ['contactoId', 'nombre cargo telefono email'],
+      ['productoId', 'nombre'],
+    ]);
   });
 
   it('devuelve una lista vacía si el vendedor no tiene oportunidades', async () => {
