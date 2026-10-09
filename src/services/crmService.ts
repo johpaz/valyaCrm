@@ -7,6 +7,7 @@ import Empresa from '../models/empresaModel';
 import Producto from '../models/productoModel';
 import Actividad from '../models/actividadModel';
 import mongoose from 'mongoose';
+import { randomUUID } from 'crypto';
 import * as calendarService from './calendarService';
 import type {
   Vendedor as VendedorType,
@@ -132,12 +133,22 @@ async buscarVendedorPorTelefono(phoneNumber: string): Promise<VendedorType | nul
 
   async crearVendedor(vendedorData: Partial<VendedorType>): Promise<VendedorType> {
     try {
-      const nuevoVendedor = new Vendedor(vendedorData);
+      const datos = { ...vendedorData };
+      // El beta no tiene inicio de sesión: si no llega contraseña se genera una
+      // temporal para cumplir con el modelo. Nunca se devuelve al llamante.
+      if (!datos.contrasena) {
+        datos.contrasena = randomUUID();
+      }
+      const nuevoVendedor = new Vendedor(datos);
       await nuevoVendedor.save();
       logger.info(`Nuevo vendedor creado: ${nuevoVendedor.nombre}`);
       return nuevoVendedor;
     } catch (error) {
-      logger.error(`Error creando vendedor: ${(error as Error).message}`);
+      // Un duplicado es un resultado esperado y su mensaje de MongoDB incluye el
+      // teléfono o el correo: no se registra aquí (la ruta registra solo el campo).
+      if (!campoDuplicadoVendedor(error)) {
+        logger.error(`Error creando vendedor: ${(error as Error).message}`);
+      }
       throw error;
     }
   }
@@ -507,6 +518,19 @@ async buscarVendedorPorTelefono(phoneNumber: string): Promise<VendedorType | nul
     logger.info('Getting entity overview');
     return { message: 'Not implemented yet' };
   }
+}
+
+// Devuelve el campo repetido si el error es de clave duplicada de MongoDB
+// (código 11000) al crear un vendedor; null en cualquier otro caso.
+export function campoDuplicadoVendedor(error: unknown): 'email' | 'telefono' | null {
+  const errorMongo = error as { code?: number; keyPattern?: object; keyValue?: object } | null;
+  if (errorMongo?.code !== 11000) {
+    return null;
+  }
+  const campos = Object.keys(errorMongo.keyPattern ?? errorMongo.keyValue ?? {});
+  if (campos.includes('telefono')) return 'telefono';
+  if (campos.includes('email')) return 'email';
+  return null;
 }
 
 const crmServiceInstance = new CRMService();

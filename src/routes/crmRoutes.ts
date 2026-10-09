@@ -1,13 +1,23 @@
 import { Elysia } from 'elysia';
 import logger from '../utils/logger';
-import crmService from '../services/crmService';
+import crmService, { campoDuplicadoVendedor } from '../services/crmService';
 
 const crmRoutes = new Elysia({ prefix: '/crm' })
   crmRoutes.post('/vendedores', async ({ body }: { body: any }) => {
     try {
-      const nuevoVendedor = await crmService.crearVendedor(body);
-      return new Response(JSON.stringify(nuevoVendedor), { status: 201 });
+      const nuevoVendedor: any = await crmService.crearVendedor(body);
+      // La contraseña nunca sale en la respuesta.
+      const { contrasena, ...vendedorSinContrasena } = nuevoVendedor.toObject?.() ?? nuevoVendedor;
+      return new Response(JSON.stringify(vendedorSinContrasena), { status: 201 });
     } catch (error) {
+      const campoDuplicado = campoDuplicadoVendedor(error);
+      if (campoDuplicado) {
+        logger.warn(`Vendedor duplicado: ya existe el campo ${campoDuplicado}`);
+        const mensaje = campoDuplicado === 'email'
+          ? 'Ya existe un usuario con ese correo electrónico.'
+          : 'Ya existe un usuario con ese teléfono.';
+        return new Response(JSON.stringify({ error: mensaje, campo: campoDuplicado }), { status: 409 });
+      }
       logger.error(`Error creando vendedor: ${error}`);
       return new Response(JSON.stringify({ error: (error as Error).message }), { status: 500 });
     }
