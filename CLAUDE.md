@@ -86,8 +86,9 @@ appends new endpoints here.
 - POST /api/v1/crm/vendedores — create salesperson. Body: nombre, 
   email, telefono, rol. The frontend form sends telefono in E.164; the 
   backend does not check the format. Generates a placeholder contrasena when 
-  none is sent and never returns it; 409 with a Spanish message if the 
-  email or telefono already exists (updated 2026-10-07)
+  none is sent and never returns it; 409 with a Spanish message and 
+  `campo` (email or telefono) if that value already exists (updated 
+  2026-10-09)
 - GET /api/v1/crm/contactos/buscar — search contacts by name
 - GET /api/v1/crm/actividades/buscar — search activities
 - GET /api/v1/crm/oportunidades/buscar — search opportunities

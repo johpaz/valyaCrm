@@ -14,9 +14,9 @@ const crmRoutes = new Elysia({ prefix: '/crm' })
       if (campoDuplicado) {
         logger.warn(`Vendedor duplicado: ya existe el campo ${campoDuplicado}`);
         const mensaje = campoDuplicado === 'email'
-          ? 'Ya existe un vendedor con ese correo electrónico.'
-          : 'Ya existe un vendedor con ese teléfono.';
-        return new Response(JSON.stringify({ error: mensaje }), { status: 409 });
+          ? 'Ya existe un usuario con ese correo electrónico.'
+          : 'Ya existe un usuario con ese teléfono.';
+        return new Response(JSON.stringify({ error: mensaje, campo: campoDuplicado }), { status: 409 });
       }
       logger.error(`Error creando vendedor: ${error}`);
       return new Response(JSON.stringify({ error: (error as Error).message }), { status: 500 });
