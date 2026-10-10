@@ -64,6 +64,24 @@ const crmRoutes = new Elysia({ prefix: '/crm' })
     }
   });
 
+  // Detalle de una oportunidad para el frontend (2.2), con sus actividades.
+  crmRoutes.get('/oportunidades/:id', async ({ params }: { params: any }) => {
+    const id = typeof params?.id === 'string' ? params.id : '';
+    if (!/^[0-9a-f]{24}$/i.test(id)) {
+      return respuestaJson({ error: 'El id de la oportunidad no tiene un formato válido.' }, 400);
+    }
+    try {
+      const oportunidad = await crmService.obtenerOportunidadPorId(id);
+      if (!oportunidad) {
+        return respuestaJson({ error: 'Oportunidad no encontrada.' }, 404);
+      }
+      return respuestaJson(oportunidad, 200);
+    } catch (error) {
+      logger.error(`Error obteniendo la oportunidad: ${error}`);
+      return respuestaJson({ error: 'No se pudo obtener la oportunidad.' }, 500);
+    }
+  });
+
   crmRoutes.post('/vendedores/identificar', async ({ body }: { body: any }) => {
     try {
       const telefono = body?.telefono;
