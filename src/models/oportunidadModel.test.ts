@@ -1,36 +1,38 @@
-import { describe, it, expect } from 'bun:test';
+import { describe, it, expect, spyOn, afterEach } from 'bun:test';
 import mongoose from 'mongoose';
 import Oportunidad from './oportunidadModel';
 
-// Ejecuta los ganchos "pre findOneAndUpdate" del modelo sobre una consulta sin
-// enviarla a la base de datos, y devuelve la actualización resultante.
-async function actualizacionTrasGanchos(actualizacion: Record<string, unknown>) {
-  const consulta = Oportunidad.findOneAndUpdate({ _id: new mongoose.Types.ObjectId() }, actualizacion);
-  const ganchos = (Oportunidad.schema as any).s.hooks;
-  await new Promise<void>((resolver, rechazar) =>
-    ganchos.execPre('findOneAndUpdate', consulta, [], (error?: Error) => (error ? rechazar(error) : resolver())),
-  );
-  return consulta.getUpdate() as Record<string, any>;
+// Envía una actualización real por la cadena de Mongoose y captura lo que
+// llegaría a MongoDB, sin conectarse: se reemplaza solo la llamada final al driver.
+async function actualizacionEnviada(actualizacion: Record<string, unknown>) {
+  const driver = spyOn(Oportunidad.collection, 'findOneAndUpdate').mockResolvedValue(null as any);
+  await Oportunidad.findByIdAndUpdate(new mongoose.Types.ObjectId(), actualizacion, { new: true });
+  return driver.mock.calls[0][1] as Record<string, any>;
 }
 
 describe('fechaActualizacion de las oportunidades', () => {
-  it('se actualiza al cambiar el estado con $set', async () => {
-    const antes = Date.now();
-    const actualizacion = await actualizacionTrasGanchos({ $set: { estado: 'Propuesta' } });
-    expect(actualizacion.$set.estado).toBe('Propuesta');
-    expect(actualizacion.$set.fechaActualizacion).toBeInstanceOf(Date);
-    expect(actualizacion.$set.fechaActualizacion.getTime()).toBeGreaterThanOrEqual(antes);
+  afterEach(() => {
+    (Oportunidad.collection.findOneAndUpdate as any).mockRestore?.();
   });
 
-  it('se actualiza al agregar una actividad con $push', async () => {
-    const actualizacion = await actualizacionTrasGanchos({ $push: { actividades: new mongoose.Types.ObjectId() } });
-    expect(actualizacion.$set.fechaActualizacion).toBeInstanceOf(Date);
-    expect(actualizacion.$push.actividades).toBeDefined();
+  it('se actualiza al cambiar el estado con $set', async () => {
+    const antes = Date.now();
+    const enviada = await actualizacionEnviada({ $set: { estado: 'Propuesta' } });
+    expect(enviada.$set.estado).toBe('Propuesta');
+    expect(enviada.$set.fechaActualizacion).toBeInstanceOf(Date);
+    expect(enviada.$set.fechaActualizacion.getTime()).toBeGreaterThanOrEqual(antes);
+  });
+
+  it('se actualiza al agregar una actividad con $push, sin perder el $push', async () => {
+    const actividad = new mongoose.Types.ObjectId();
+    const enviada = await actualizacionEnviada({ $push: { actividades: actividad } });
+    expect(enviada.$set.fechaActualizacion).toBeInstanceOf(Date);
+    expect(String(enviada.$push.actividades)).toBe(String(actividad));
   });
 
   it('respeta una fecha que el llamante fije a propósito', async () => {
     const fija = new Date('2026-01-01');
-    const actualizacion = await actualizacionTrasGanchos({ $set: { fechaActualizacion: fija } });
-    expect(actualizacion.$set.fechaActualizacion).toEqual(fija);
+    const enviada = await actualizacionEnviada({ $set: { fechaActualizacion: fija } });
+    expect(enviada.$set.fechaActualizacion).toEqual(fija);
   });
 });

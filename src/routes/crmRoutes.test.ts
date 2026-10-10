@@ -180,6 +180,13 @@ describe('PATCH /crm/oportunidades/:id/estado', () => {
     expect((await respuesta.json()).error).toBe('Oportunidad no encontrada.');
   });
 
+  it('devuelve 404 si la oportunidad se borra antes de releerla', async () => {
+    spyOn(crmService, 'actualizarOportunidad').mockResolvedValue({ _id: OPORTUNIDAD } as any);
+    spyOn(crmService, 'obtenerOportunidadPorId').mockResolvedValue(null);
+    const respuesta = await enviarEstado(OPORTUNIDAD, { estado: 'Propuesta' });
+    expect(respuesta.status).toBe(404);
+  });
+
   it('devuelve 400 si el id no tiene formato válido, sin guardar nada', async () => {
     const actualizar = spyOn(crmService, 'actualizarOportunidad');
     const respuesta = await enviarEstado('123', { estado: 'Propuesta' });

@@ -99,6 +99,10 @@ const crmRoutes = new Elysia({ prefix: '/crm' })
         return respuestaJson({ error: 'Oportunidad no encontrada.' }, 404);
       }
       const oportunidad = await crmService.obtenerOportunidadPorId(id);
+      if (!oportunidad) {
+        // Borrada entre la actualización y la relectura.
+        return respuestaJson({ error: 'Oportunidad no encontrada.' }, 404);
+      }
       return respuestaJson(oportunidad, 200);
     } catch (error) {
       logger.error(`Error actualizando el estado de la oportunidad: ${error}`);
