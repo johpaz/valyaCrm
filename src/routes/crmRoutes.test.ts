@@ -282,6 +282,14 @@ describe('POST /crm/oportunidades/:id/ganada', () => {
     expect(marcar).not.toHaveBeenCalled();
   });
 
+  it('rechaza con 400 un comentario que no es texto', async () => {
+    const marcar = spyOn(crmService, 'marcarOportunidadComoGanada');
+    const respuesta = await marcarGanada(OPORTUNIDAD, { valorCierre: 900, comentario: 123 });
+    expect(respuesta.status).toBe(400);
+    expect((await respuesta.json()).error).toBe('El comentario debe ser texto.');
+    expect(marcar).not.toHaveBeenCalled();
+  });
+
   it('devuelve 500 con un mensaje genérico ante un fallo inesperado', async () => {
     spyOn(crmService, 'marcarOportunidadComoGanada').mockRejectedValue(new Error('MongoServerError: detalle interno'));
     const respuesta = await marcarGanada(OPORTUNIDAD, { valorCierre: 900 });

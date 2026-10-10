@@ -1,4 +1,4 @@
-import { describe, it, expect, spyOn, afterEach } from 'bun:test';
+import { describe, it, expect, spyOn, afterEach, setSystemTime } from 'bun:test';
 import Vendedor from '../models/vendedorModel';
 import mongoose from 'mongoose';
 import Oportunidad from '../models/oportunidadModel';
@@ -358,12 +358,12 @@ describe('marcarOportunidadComoGanada', () => {
     expect(cambios.$set.fechaCierre).toBeUndefined();
   });
 
-  it('usa la fecha de hoy si no se indica la fecha real', async () => {
+  it('usa la fecha de hoy (día de Bogotá) si no se indica la fecha real', async () => {
     const e = espias({ oportunidad: oportunidadEn('Propuesta') });
-    const antes = Date.now();
+    const hoyEnBogota = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(new Date());
     await crmService.marcarOportunidadComoGanada(OP_ID, { valor: 10 });
     const fecha = (e.crearVenta.mock.calls[0][0] as any).fecha as Date;
-    expect(fecha.getTime()).toBeGreaterThanOrEqual(antes);
+    expect(fecha).toEqual(new Date(`${hoyEnBogota}T00:00:00Z`));
   });
 
   it('cuenta la venta en el mes de la fecha real de cierre', async () => {
@@ -490,5 +490,128 @@ describe('actualizarOportunidad y el estado ganado', () => {
     await crmService.actualizarOportunidad(OP_ID, { estado: 'Negociación' } as any);
     expect((e.actualizarOp.mock.calls[0] as any)[1].$unset).toBeUndefined();
     expect(e.borrarVenta).not.toHaveBeenCalled();
+  });
+});
+
+// --- 2.10 tras la revisión: la fecha real es un día de calendario en Bogotá ---
+
+describe('marcarOportunidadComoGanada: fechas en hora de Bogotá', () => {
+  afterEach(() => {
+    restaurar();
+    setSystemTime();
+  });
+
+  const dia = (texto: string) => new Date(`${texto}T00:00:00Z`);
+
+  it('rechaza mañana, aunque falten menos de 24 horas', async () => {
+    setSystemTime(new Date('2026-10-10T19:40:00Z')); // 14:40 en Bogotá, 10 oct
+    const e = espias({ oportunidad: oportunidadEn('Propuesta') });
+    const error = await errorDe(crmService.marcarOportunidadComoGanada(OP_ID, { valor: 10, fechaCierreReal: dia('2026-10-11') }));
+    expect(error.statusCode).toBe(400);
+    expect(e.crearVenta).not.toHaveBeenCalled();
+  });
+
+  it('de noche en Bogotá, "hoy" sigue siendo el día de Bogotá', async () => {
+    setSystemTime(new Date('2026-10-11T01:00:00Z')); // 20:00 en Bogotá, 10 oct
+    let e = espias({ oportunidad: oportunidadEn('Propuesta') });
+    const error = await errorDe(crmService.marcarOportunidadComoGanada(OP_ID, { valor: 10, fechaCierreReal: dia('2026-10-11') }));
+    expect(error.statusCode).toBe(400);
+    restaurar();
+    e = espias({ oportunidad: oportunidadEn('Propuesta') });
+    await crmService.marcarOportunidadComoGanada(OP_ID, { valor: 10, fechaCierreReal: dia('2026-10-10') });
+    expect(e.crearVenta).toHaveBeenCalled();
+  });
+
+  it('sin fecha, usa el día de hoy en Bogotá y lo cuenta en ese mes', async () => {
+    setSystemTime(new Date('2026-11-01T01:00:00Z')); // 31 oct, 20:00 en Bogotá
+    const e = espias({ oportunidad: oportunidadEn('Propuesta') });
+    await crmService.marcarOportunidadComoGanada(OP_ID, { valor: 10 });
+    const venta = e.crearVenta.mock.calls[0][0] as any;
+    expect(venta.fecha).toEqual(dia('2026-10-31'));
+    expect([venta.mes, venta.año]).toEqual([10, 2026]);
+    expect((e.actualizarOp.mock.calls[0] as any)[1].$set.fechaCierreReal).toEqual(dia('2026-10-31'));
+  });
+
+  it('una oportunidad creada de noche se puede cerrar el mismo día', async () => {
+    setSystemTime(new Date('2026-10-10T15:00:00Z'));
+    const creadaDeNoche = new Date('2026-10-02T02:00:00Z'); // 1 oct, 21:00 en Bogotá
+    let e = espias({ oportunidad: oportunidadEn('Propuesta', { fechaCreacion: creadaDeNoche }) });
+    await crmService.marcarOportunidadComoGanada(OP_ID, { valor: 10, fechaCierreReal: dia('2026-10-01') });
+    expect(e.crearVenta).toHaveBeenCalled();
+    restaurar();
+    e = espias({ oportunidad: oportunidadEn('Propuesta', { fechaCreacion: creadaDeNoche }) });
+    const error = await errorDe(crmService.marcarOportunidadComoGanada(OP_ID, { valor: 10, fechaCierreReal: dia('2026-09-30') }));
+    expect(error.statusCode).toBe(400);
+  });
+
+  it('una hora exacta (del agente) se guarda como su día en Bogotá', async () => {
+    setSystemTime(new Date('2026-11-02T15:00:00Z'));
+    const e = espias({ oportunidad: oportunidadEn('Propuesta') });
+    await crmService.marcarOportunidadComoGanada(OP_ID, { valor: 10, fechaCierreReal: new Date('2026-11-01T01:00:00Z') });
+    const venta = e.crearVenta.mock.calls[0][0] as any;
+    expect(venta.fecha).toEqual(dia('2026-10-31'));
+    expect(venta.mes).toBe(10);
+  });
+});
+
+describe('marcarOportunidadComoGanada: casos límite de la revisión', () => {
+  afterEach(restaurar);
+
+  it('al reparar sin comentario nuevo, quita el comentario anterior', async () => {
+    const e = espias({ oportunidad: oportunidadEn('Negociación'), ventaExistente: { _id: 'v0', comentario: 'viejo' } });
+    await crmService.marcarOportunidadComoGanada(OP_ID, { valor: 500 });
+    const [, cambiosVenta] = e.actualizarVenta.mock.calls[0] as any;
+    expect(cambiosVenta.$unset).toEqual({ comentario: '' });
+    expect(cambiosVenta.$set.comentario).toBeUndefined();
+  });
+
+  it('si la oportunidad desaparece a mitad de camino, borra la venta nueva y responde 404', async () => {
+    const e = espias({ oportunidad: oportunidadEn('Propuesta') });
+    e.actualizarOp.mockResolvedValue(null as any);
+    const error = await errorDe(crmService.marcarOportunidadComoGanada(OP_ID, { valor: 10 }));
+    expect(error.statusCode).toBe(404);
+    expect(e.borrarVenta).toHaveBeenCalled();
+  });
+
+  it('si falla marcar la oportunidad al reparar, no borra la venta que ya existía', async () => {
+    const e = espias({ oportunidad: oportunidadEn('Propuesta'), ventaExistente: { _id: 'v0' } });
+    e.actualizarOp.mockRejectedValue(new Error('sin conexión'));
+    await expect(crmService.marcarOportunidadComoGanada(OP_ID, { valor: 10 })).rejects.toThrow('sin conexión');
+    expect(e.borrarVenta).not.toHaveBeenCalled();
+  });
+});
+
+describe('crearVentaGanada: datos del agente', () => {
+  afterEach(() => {
+    restaurar();
+    setSystemTime();
+  });
+
+  it('usa la fecha y el comentario que manda el agente', async () => {
+    setSystemTime(new Date('2026-10-10T15:00:00Z'));
+    const e = espias({ oportunidad: oportunidadEn('Negociación') });
+    await crmService.crearVentaGanada({ oportunidadId: OP_ID, valor: 900, fecha: '2026-10-05', comentario: 'Por WhatsApp' } as any);
+    const venta = e.crearVenta.mock.calls[0][0] as any;
+    expect(venta.fecha).toEqual(new Date('2026-10-05T00:00:00Z'));
+    expect(venta.comentario).toBe('Por WhatsApp');
+  });
+});
+
+describe('actualizarOportunidad al reabrir: casos límite', () => {
+  afterEach(restaurar);
+
+  it('no envía monto ni fecha real junto con su borrado (evita el conflicto en MongoDB)', async () => {
+    const e = espias({ oportunidad: oportunidadEn('Cerrado Ganado') });
+    await crmService.actualizarOportunidad(OP_ID, { estado: 'Propuesta', valorCierre: 5, fechaCierreReal: new Date(), nombre: 'X' } as any);
+    const cambios = (e.actualizarOp.mock.calls[0] as any)[1];
+    expect(cambios.$set).toEqual({ estado: 'Propuesta', nombre: 'X' });
+    expect(cambios.$unset).toEqual({ valorCierre: '', fechaCierreReal: '' });
+  });
+
+  it('si la oportunidad ya no existe al reabrir, borra igualmente su venta', async () => {
+    const e = espias({ oportunidad: oportunidadEn('Cerrado Ganado') });
+    e.actualizarOp.mockResolvedValue(null as any);
+    expect(await crmService.actualizarOportunidad(OP_ID, { estado: 'Propuesta' } as any)).toBeNull();
+    expect(e.borrarVenta).toHaveBeenCalled();
   });
 });

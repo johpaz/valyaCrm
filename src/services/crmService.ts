@@ -334,14 +334,17 @@ async buscarVendedorPorTelefono(phoneNumber: string): Promise<VendedorType | nul
       }
       const cambios: Record<string, unknown> = { $set: updateData };
       if (reabriendoGanada) {
+        // Sin monto ni fecha real en el $set: chocarían con su borrado en MongoDB.
+        const { valorCierre, fechaCierreReal, ...resto } = updateData as Record<string, unknown>;
+        cambios.$set = resto;
         cambios.$unset = { valorCierre: '', fechaCierreReal: '' };
       }
       const oportunidadActualizada = await Oportunidad.findByIdAndUpdate(oportunidadId, cambios, { new: true });
+      if (reabriendoGanada) {
+        await VentaGanada.deleteOne({ oportunidadId: new mongoose.Types.ObjectId(oportunidadId) });
+        logger.info(`Oportunidad ${oportunidadId} reabierta: venta ganada eliminada`);
+      }
       if (oportunidadActualizada) {
-        if (reabriendoGanada) {
-          await VentaGanada.deleteOne({ oportunidadId: new mongoose.Types.ObjectId(oportunidadId) });
-          logger.info(`Oportunidad ${oportunidadId} reabierta: venta ganada eliminada`);
-        }
         logger.info(`Oportunidad actualizada: ${oportunidadActualizada.nombre} (ID: ${oportunidadId})`);
       }
       return oportunidadActualizada;
@@ -552,7 +555,7 @@ async buscarVendedorPorTelefono(phoneNumber: string): Promise<VendedorType | nul
       throw new AppError('Oportunidad no encontrada.', 404);
     }
 
-    const fecha = datos.fechaCierreReal ?? new Date();
+    const fecha = diaDeCierre(datos.fechaCierreReal);
     if (!fechaDeCierreValida(fecha, oportunidad.fechaCreacion)) {
       throw new AppError('La fecha de cierre no puede ser futura ni anterior a la creación de la oportunidad.', 400);
     }
@@ -575,11 +578,11 @@ async buscarVendedorPorTelefono(phoneNumber: string): Promise<VendedorType | nul
     try {
       if (existente) {
         // Intento anterior interrumpido: se completa con los datos de ahora.
-        venta = await VentaGanada.findOneAndUpdate(
-          { oportunidadId: idOportunidad },
-          { $set: datosVenta },
-          { new: true },
-        );
+        const cambiosVenta: Record<string, unknown> = { $set: datosVenta };
+        if (!datosVenta.comentario) {
+          cambiosVenta.$unset = { comentario: '' };
+        }
+        venta = await VentaGanada.findOneAndUpdate({ oportunidadId: idOportunidad }, cambiosVenta, { new: true });
       } else {
         venta = await VentaGanada.create({ ...datosVenta, oportunidadId: idOportunidad, vendedorId: oportunidad.vendedorId });
         ventaNueva = true;
@@ -591,8 +594,9 @@ async buscarVendedorPorTelefono(phoneNumber: string): Promise<VendedorType | nul
       throw error;
     }
 
+    let marcada;
     try {
-      await Oportunidad.findByIdAndUpdate(oportunidadId, {
+      marcada = await Oportunidad.findByIdAndUpdate(oportunidadId, {
         $set: { estado: 'Cerrado Ganado', valorCierre: valor, fechaCierreReal: fecha },
       });
     } catch (error) {
@@ -601,6 +605,11 @@ async buscarVendedorPorTelefono(phoneNumber: string): Promise<VendedorType | nul
       }
       logger.error(`Error marcando como ganada la oportunidad ${oportunidadId}: ${(error as Error).message}`);
       throw error;
+    }
+    if (!marcada) {
+      // Borrada mientras tanto: su venta no debe quedar contando en el tablero.
+      await VentaGanada.deleteOne({ oportunidadId: idOportunidad });
+      throw new AppError('Oportunidad no encontrada.', 404);
     }
     logger.info(`Oportunidad ${oportunidadId} marcada como ganada`);
     return { venta };
@@ -680,17 +689,29 @@ export interface OportunidadConActividades extends OportunidadParaLista {
   actividades: Record<string, unknown>[];
 }
 
-// La fecha real de cierre no puede ser futura (con un día de margen por las
-// zonas horarias) ni anterior al día en que se creó la oportunidad.
-function fechaDeCierreValida(fecha: Date, fechaCreacion?: Date | string): boolean {
-  if (!(fecha instanceof Date) || Number.isNaN(fecha.getTime())) return false;
-  const UN_DIA = 24 * 60 * 60 * 1000;
-  if (fecha.getTime() > Date.now() + UN_DIA) return false;
-  if (fechaCreacion) {
-    const creada = new Date(fechaCreacion);
-    const inicioDelDia = Date.UTC(creada.getUTCFullYear(), creada.getUTCMonth(), creada.getUTCDate());
-    if (fecha.getTime() < inicioDelDia) return false;
-  }
+// La fecha real de cierre es un día de calendario en hora de Bogotá (los
+// vendedores de la beta están en Colombia): se guarda como medianoche UTC de ese
+// día, igual que la envía el selector de fecha de la app.
+const ZONA_HORARIA_NEGOCIO = 'America/Bogota';
+
+function diaEnBogota(instante: Date): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: ZONA_HORARIA_NEGOCIO }).format(instante);
+}
+
+function diaDeCierre(fecha?: Date): Date {
+  if (!fecha) return new Date(`${diaEnBogota(new Date())}T00:00:00Z`);
+  if (Number.isNaN(fecha.getTime())) return fecha;
+  const esSoloDia =
+    fecha.getUTCHours() === 0 && fecha.getUTCMinutes() === 0 && fecha.getUTCSeconds() === 0 && fecha.getUTCMilliseconds() === 0;
+  return esSoloDia ? fecha : new Date(`${diaEnBogota(fecha)}T00:00:00Z`);
+}
+
+// No puede ser futura ni anterior al día (en Bogotá) en que se creó la oportunidad.
+function fechaDeCierreValida(dia: Date, fechaCreacion?: Date | string): boolean {
+  if (Number.isNaN(dia.getTime())) return false;
+  const texto = dia.toISOString().slice(0, 10);
+  if (texto > diaEnBogota(new Date())) return false;
+  if (fechaCreacion && texto < diaEnBogota(new Date(fechaCreacion))) return false;
   return true;
 }
 

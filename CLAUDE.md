@@ -95,14 +95,14 @@ appends new endpoints here.
 - GET /api/v1/reportDash/report — fetch sales dashboard data for a 
   salesperson
 - GET /api/v1/crm/oportunidades?vendedorId=… — a rep's 20 most recently 
-  updated opportunities (each also carries valorCierre and fechaCierreReal 
-  since 2.10) (fechaActualizacion is refreshed on every update 
-  by a findOneAndUpdate hook since 2.3), each with empresa, contacto and producto (only 
+  updated opportunities (fechaActualizacion is refreshed on every update 
+  by a findOneAndUpdate hook since 2.3); each also carries valorCierre and 
+  fechaCierreReal since 2.10, each with empresa, contacto and producto (only 
   the fields the CRM card needs) and cantidadActividades; [] if none; 400 
   for a missing or malformed vendedorId. Hard cap of 20, no pagination, 
   for the beta test phase (added 2026-10-09)
 - GET /api/v1/crm/oportunidades/:id — one opportunity in the same shape as 
-  the list above plus actividades (soonest fechaProgramada first); 404 if 
+  the list above (including valorCierre and fechaCierreReal) plus actividades (soonest fechaProgramada first); 404 if 
   it does not exist, 400 for a malformed id. No ownership check in the 
   beta (added 2026-10-09)
 - PATCH /api/v1/crm/oportunidades/:id/estado — body { estado }: moves an 
@@ -115,7 +115,8 @@ appends new endpoints here.
   fechaCierreReal?, comentario? }: the only way to mark a deal won, for the 
   app and the agent's crear_venta_ganada alike. Records exactly one 
   VentaGanada (unique oportunidadId) with the amount, the actual close 
-  date (default today; not future, not before creation) and the comment 
+  date (a calendar day in Bogotá time; default today; not future, not 
+  before the creation day) and the comment 
   (max 500); sets estado, valorCierre and fechaCierreReal; fechaCierre 
   stays the expected date. 409 if already won; repairs an interrupted 
   earlier attempt (added 2026-10-10)

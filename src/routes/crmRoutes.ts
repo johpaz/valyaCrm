@@ -92,8 +92,9 @@ const crmRoutes = new Elysia({ prefix: '/crm' })
     }
   });
 
-  // Cambio de etapa desde el frontend (2.3). Solo se guarda `estado`: la
-  // validación vive aquí y no en actualizarOportunidad, que también usa el agente.
+  // Cambio de etapa desde el frontend (2.3). Solo se guarda `estado`. Las siete
+  // etapas exactas se validan aquí; el rechazo de "Cerrado Ganado" y el borrado de
+  // la venta al reabrir viven en actualizarOportunidad (2.10), que también usa el agente.
   crmRoutes.patch('/oportunidades/:id/estado', async ({ params, body }: { params: any; body: any }) => {
     const id = typeof params?.id === 'string' ? params.id : '';
     if (!/^[0-9a-f]{24}$/i.test(id)) {
@@ -138,6 +139,9 @@ const crmRoutes = new Elysia({ prefix: '/crm' })
       if (Number.isNaN(fechaCierreReal.getTime())) {
         return respuestaJson({ error: MENSAJE_FECHA_CIERRE }, 400);
       }
+    }
+    if (body.comentario !== undefined && body.comentario !== null && typeof body.comentario !== 'string') {
+      return respuestaJson({ error: 'El comentario debe ser texto.' }, 400);
     }
     try {
       await crmService.marcarOportunidadComoGanada(id, {
