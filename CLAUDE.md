@@ -94,9 +94,9 @@ appends new endpoints here.
 - GET /api/v1/crm/oportunidades/buscar — search opportunities
 - GET /api/v1/reportDash/report — fetch sales dashboard data for a 
   salesperson
-- GET /api/v1/crm/oportunidades?vendedorId=… — a rep's 20 opportunities 
-  with the latest fechaActualizacion (today only set on creation, since 
-  updates bypass the model's save hook), each with empresa, contacto and producto (only 
+- GET /api/v1/crm/oportunidades?vendedorId=… — a rep's 20 most recently 
+  updated opportunities (fechaActualizacion is refreshed on every update 
+  by a findOneAndUpdate hook since 2.3), each with empresa, contacto and producto (only 
   the fields the CRM card needs) and cantidadActividades; [] if none; 400 
   for a missing or malformed vendedorId. Hard cap of 20, no pagination, 
   for the beta test phase (added 2026-10-09)
@@ -104,6 +104,11 @@ appends new endpoints here.
   the list above plus actividades (soonest fechaProgramada first); 404 if 
   it does not exist, 400 for a malformed id. No ownership check in the 
   beta (added 2026-10-09)
+- PATCH /api/v1/crm/oportunidades/:id/estado — body { estado }: moves an 
+  opportunity to one of the seven stages (exact spelling, e.g. 
+  "Negociación"); only estado is saved; returns the opportunity in the 
+  detail shape; 400 for an invalid stage or malformed id, 404 if it does 
+  not exist (added 2026-10-09)
 - POST /api/v1/crm/vendedores/identificar — identify a salesperson by 
   phone number in E.164 format; returns vendedorId, nombre and rol. 
   404 if no match or the salesperson is inactive (added 2026-10-02)
