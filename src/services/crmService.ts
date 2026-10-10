@@ -567,6 +567,11 @@ async buscarVendedorPorTelefono(phoneNumber: string): Promise<VendedorType | nul
   }
 }
 
+// Las siete etapas válidas, leídas del modelo para que no se desincronicen.
+export const ESTADOS_OPORTUNIDAD: readonly string[] = (
+  Oportunidad.schema.path('estado') as unknown as { enumValues: string[] }
+).enumValues;
+
 export interface OportunidadParaLista {
   _id: unknown;
   nombre: string;

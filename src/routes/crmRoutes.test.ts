@@ -113,3 +113,87 @@ describe('GET /crm/oportunidades/:id', () => {
     expect(obtener).not.toHaveBeenCalled();
   });
 });
+
+function enviarEstado(id: string, cuerpo: unknown) {
+  return crmRoutes.handle(
+    new Request(`http://localhost/crm/oportunidades/${id}/estado`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(cuerpo),
+    }),
+  );
+}
+
+describe('PATCH /crm/oportunidades/:id/estado', () => {
+  afterEach(() => {
+    (crmService.actualizarOportunidad as any).mockRestore?.();
+    (crmService.obtenerOportunidadPorId as any).mockRestore?.();
+  });
+
+  it('guarda el nuevo estado y devuelve la oportunidad releída', async () => {
+    const actualizar = spyOn(crmService, 'actualizarOportunidad').mockResolvedValue({ _id: OPORTUNIDAD } as any);
+    const detalle = { _id: OPORTUNIDAD, estado: 'Propuesta', actividades: [] };
+    spyOn(crmService, 'obtenerOportunidadPorId').mockResolvedValue(detalle as any);
+
+    const respuesta = await enviarEstado(OPORTUNIDAD, { estado: 'Propuesta' });
+
+    expect(respuesta.status).toBe(200);
+    expect(respuesta.headers.get('content-type')).toContain('application/json');
+    expect(await respuesta.json()).toEqual(detalle);
+    expect(actualizar).toHaveBeenCalledWith(OPORTUNIDAD, { estado: 'Propuesta' });
+  });
+
+  it('solo cambia el estado aunque el cuerpo traiga otros campos', async () => {
+    const actualizar = spyOn(crmService, 'actualizarOportunidad').mockResolvedValue({ _id: OPORTUNIDAD } as any);
+    spyOn(crmService, 'obtenerOportunidadPorId').mockResolvedValue({ _id: OPORTUNIDAD } as any);
+
+    await enviarEstado(OPORTUNIDAD, { estado: 'Cerrado Ganado', nombre: 'Otro', valorEstimado: 1, vendedorId: 'x' });
+
+    expect(actualizar).toHaveBeenCalledWith(OPORTUNIDAD, { estado: 'Cerrado Ganado' });
+  });
+
+  it('rechaza con 400 un estado que no es una de las siete etapas, sin guardar nada', async () => {
+    const actualizar = spyOn(crmService, 'actualizarOportunidad');
+    for (const cuerpo of [{ estado: 'Ganado' }, { estado: 'negociacion' }, { estado: 'Negociacion' }, { estado: 5 }, {}]) {
+      const respuesta = await enviarEstado(OPORTUNIDAD, cuerpo);
+      expect(respuesta.status).toBe(400);
+      expect((await respuesta.json()).error).toBe(
+        'Estado no válido. Usa uno de: Prospecto, Calificado, Propuesta, Negociación, Cerrado Ganado, Cerrado Perdido, Seguimiento.',
+      );
+    }
+    expect(actualizar).not.toHaveBeenCalled();
+  });
+
+  it('rechaza con 400 un cuerpo que no es JSON', async () => {
+    const actualizar = spyOn(crmService, 'actualizarOportunidad');
+    const respuesta = await crmRoutes.handle(
+      new Request(`http://localhost/crm/oportunidades/${OPORTUNIDAD}/estado`, { method: 'PATCH', body: 'Propuesta' }),
+    );
+    expect(respuesta.status).toBe(400);
+    expect(actualizar).not.toHaveBeenCalled();
+  });
+
+  it('devuelve 404 si la oportunidad no existe', async () => {
+    spyOn(crmService, 'actualizarOportunidad').mockResolvedValue(null);
+    const respuesta = await enviarEstado(OPORTUNIDAD, { estado: 'Propuesta' });
+    expect(respuesta.status).toBe(404);
+    expect((await respuesta.json()).error).toBe('Oportunidad no encontrada.');
+  });
+
+  it('devuelve 400 si el id no tiene formato válido, sin guardar nada', async () => {
+    const actualizar = spyOn(crmService, 'actualizarOportunidad');
+    const respuesta = await enviarEstado('123', { estado: 'Propuesta' });
+    expect(respuesta.status).toBe(400);
+    expect((await respuesta.json()).error).toBe('El id de la oportunidad no tiene un formato válido.');
+    expect(actualizar).not.toHaveBeenCalled();
+  });
+
+  it('devuelve 500 con un mensaje genérico si falla la base de datos', async () => {
+    spyOn(crmService, 'actualizarOportunidad').mockRejectedValue(new Error('MongoServerError: detalle interno'));
+    const respuesta = await enviarEstado(OPORTUNIDAD, { estado: 'Propuesta' });
+    expect(respuesta.status).toBe(500);
+    const cuerpo = await respuesta.json();
+    expect(cuerpo.error).toBe('No se pudo actualizar la oportunidad.');
+    expect(JSON.stringify(cuerpo)).not.toContain('detalle interno');
+  });
+});
