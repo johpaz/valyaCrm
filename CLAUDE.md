@@ -94,6 +94,12 @@ appends new endpoints here.
 - GET /api/v1/crm/oportunidades/buscar — search opportunities
 - GET /api/v1/reportDash/report — fetch sales dashboard data for a 
   salesperson
+- GET /api/v1/crm/oportunidades?vendedorId=… — a rep's 20 opportunities 
+  with the latest fechaActualizacion (today only set on creation, since 
+  updates bypass the model's save hook), each with empresa, contacto and producto (only 
+  the fields the CRM card needs) and cantidadActividades; [] if none; 400 
+  for a missing or malformed vendedorId. Hard cap of 20, no pagination, 
+  for the beta test phase (added 2026-10-09)
 - POST /api/v1/crm/vendedores/identificar — identify a salesperson by 
   phone number in E.164 format; returns vendedorId, nombre and rol. 
   404 if no match or the salesperson is inactive (added 2026-10-02)

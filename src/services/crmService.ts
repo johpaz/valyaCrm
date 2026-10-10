@@ -367,6 +367,26 @@ async buscarVendedorPorTelefono(phoneNumber: string): Promise<VendedorType | nul
     }
   }
 
+  // Lista para el tablero CRM del frontend (2.1): las más recientes primero,
+  // con empresa, contacto y producto. Separada de obtenerOportunidadesPorVendedor
+  // para no cambiar lo que recibe la herramienta listar_oportunidades del agente.
+  async listarOportunidadesDeVendedor(vendedorId: string, limite: number = 20): Promise<OportunidadParaLista[]> {
+    try {
+      const oportunidades = await Oportunidad.find({ vendedorId: new mongoose.Types.ObjectId(vendedorId) })
+        .sort({ fechaActualizacion: -1 })
+        .limit(limite)
+        .populate('empresaId', 'nombre sector ubicacion')
+        .populate('contactoId', 'nombre cargo telefono email')
+        .populate('productoId', 'nombre')
+        .lean();
+      logger.info(`Lista de oportunidades para vendedor ${vendedorId}: ${oportunidades.length} encontradas.`);
+      return oportunidades.map(darFormaOportunidad);
+    } catch (error) {
+      logger.error(`Error listando oportunidades del vendedor ${vendedorId}: ${(error as Error).message}`);
+      throw error;
+    }
+  }
+
   async buscarOportunidadesPorEmpresa(empresaId: string, limit: number = 10): Promise<OportunidadType[]> {
     try {
       const oportunidades = await Oportunidad.find({ empresaId: new mongoose.Types.ObjectId(empresaId) }).sort({ fechaActualizacion: -1 }).limit(limit);
@@ -518,6 +538,51 @@ async buscarVendedorPorTelefono(phoneNumber: string): Promise<VendedorType | nul
     logger.info('Getting entity overview');
     return { message: 'Not implemented yet' };
   }
+}
+
+export interface OportunidadParaLista {
+  _id: unknown;
+  nombre: string;
+  estado: string;
+  valorEstimado: number;
+  comision: number | null;
+  fechaCierre: unknown;
+  fechaCreacion: unknown;
+  fechaActualizacion: unknown;
+  notas: string[];
+  proximosPasos: string | null;
+  cantidadActividades: number;
+  empresa: Record<string, unknown> | null;
+  contacto: Record<string, unknown> | null;
+  producto: Record<string, unknown> | null;
+}
+
+// Una relación poblada es un objeto con _id; un id suelto (sin poblar o de un
+// registro borrado) no se expone como si fuera la relación.
+function relacionPoblada(valor: unknown): Record<string, unknown> | null {
+  return valor && typeof valor === 'object' && '_id' in (valor as object)
+    ? (valor as Record<string, unknown>)
+    : null;
+}
+
+// Forma de cada oportunidad en la lista, con los nombres que usa el frontend (1.4).
+export function darFormaOportunidad(doc: any): OportunidadParaLista {
+  return {
+    _id: doc._id,
+    nombre: doc.nombre,
+    estado: doc.estado,
+    valorEstimado: doc.valorEstimado ?? 0,
+    comision: doc.comision ?? null,
+    fechaCierre: doc.fechaCierre ?? null,
+    fechaCreacion: doc.fechaCreacion ?? null,
+    fechaActualizacion: doc.fechaActualizacion ?? null,
+    notas: doc.notas ?? [],
+    proximosPasos: doc.proximosPasos ?? null,
+    cantidadActividades: doc.actividades?.length ?? 0,
+    empresa: relacionPoblada(doc.empresaId),
+    contacto: relacionPoblada(doc.contactoId),
+    producto: relacionPoblada(doc.productoId),
+  };
 }
 
 // Devuelve el campo repetido si el error es de clave duplicada de MongoDB

@@ -2,6 +2,14 @@ import { Elysia } from 'elysia';
 import logger from '../utils/logger';
 import crmService, { campoDuplicadoVendedor } from '../services/crmService';
 
+// Respuesta JSON con su tipo de contenido (las Response construidas a mano no
+// lo reciben automáticamente de Elysia).
+const respuestaJson = (cuerpo: unknown, estado: number) =>
+  new Response(JSON.stringify(cuerpo), {
+    status: estado,
+    headers: { 'Content-Type': 'application/json; charset=utf-8' },
+  });
+
 const crmRoutes = new Elysia({ prefix: '/crm' })
   crmRoutes.post('/vendedores', async ({ body }: { body: any }) => {
     try {
@@ -36,6 +44,24 @@ const crmRoutes = new Elysia({ prefix: '/crm' })
     const { nombre } = query;
     const oportunidades = await crmService.buscar_oportunidad_por_nombre(nombre, '');
     return oportunidades;
+  });
+
+  // Lista del tablero CRM del frontend (2.1): hasta 20 oportunidades del vendedor.
+  crmRoutes.get('/oportunidades', async ({ query }: { query: any }) => {
+    const vendedorId = typeof query?.vendedorId === 'string' ? query.vendedorId.trim() : '';
+    if (!vendedorId) {
+      return respuestaJson({ error: 'El parámetro vendedorId es requerido.' }, 400);
+    }
+    if (!/^[0-9a-f]{24}$/i.test(vendedorId)) {
+      return respuestaJson({ error: 'El parámetro vendedorId no tiene un formato válido.' }, 400);
+    }
+    try {
+      const oportunidades = await crmService.listarOportunidadesDeVendedor(vendedorId);
+      return respuestaJson(oportunidades, 200);
+    } catch (error) {
+      logger.error(`Error listando oportunidades: ${error}`);
+      return respuestaJson({ error: 'No se pudieron obtener las oportunidades.' }, 500);
+    }
   });
 
   crmRoutes.post('/vendedores/identificar', async ({ body }: { body: any }) => {

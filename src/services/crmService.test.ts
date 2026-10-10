@@ -1,6 +1,7 @@
 import { describe, it, expect, spyOn, afterEach } from 'bun:test';
 import Vendedor from '../models/vendedorModel';
-import crmService, { campoDuplicadoVendedor } from './crmService';
+import Oportunidad from '../models/oportunidadModel';
+import crmService, { campoDuplicadoVendedor, darFormaOportunidad } from './crmService';
 
 describe('crearVendedor', () => {
   afterEach(() => {
@@ -86,5 +87,115 @@ describe('campoDuplicadoVendedor', () => {
   it('devuelve null para errores que no son de duplicado', () => {
     expect(campoDuplicadoVendedor(new Error('otro error'))).toBeNull();
     expect(campoDuplicadoVendedor(null)).toBeNull();
+  });
+});
+
+// Consulta falsa de Mongoose que registra cómo se encadena.
+function consultaFalsa(resultado: unknown) {
+  const llamadas: Record<string, unknown[][]> = { sort: [], limit: [], populate: [] };
+  const consulta: any = {
+    sort: (...a: unknown[]) => (llamadas.sort.push(a), consulta),
+    limit: (...a: unknown[]) => (llamadas.limit.push(a), consulta),
+    populate: (...a: unknown[]) => (llamadas.populate.push(a), consulta),
+    lean: () => Promise.resolve(resultado),
+  };
+  return { consulta, llamadas };
+}
+
+const VENDEDOR = '6ac956a7dfb71b89c6dccc09';
+
+describe('listarOportunidadesDeVendedor', () => {
+  afterEach(() => {
+    (Oportunidad.find as any).mockRestore?.();
+  });
+
+  it('busca las del vendedor, las más recientes primero, hasta 20, con empresa, contacto y producto', async () => {
+    const { consulta, llamadas } = consultaFalsa([]);
+    const find = spyOn(Oportunidad, 'find').mockReturnValue(consulta);
+
+    await crmService.listarOportunidadesDeVendedor(VENDEDOR);
+
+    expect(String((find.mock.calls[0][0] as any).vendedorId)).toBe(VENDEDOR);
+    expect(llamadas.sort).toEqual([[{ fechaActualizacion: -1 }]]);
+    expect(llamadas.limit).toEqual([[20]]);
+    expect(llamadas.populate).toEqual([
+      ['empresaId', 'nombre sector ubicacion'],
+      ['contactoId', 'nombre cargo telefono email'],
+      ['productoId', 'nombre'],
+    ]);
+  });
+
+  it('devuelve una lista vacía si el vendedor no tiene oportunidades', async () => {
+    spyOn(Oportunidad, 'find').mockReturnValue(consultaFalsa([]).consulta);
+    expect(await crmService.listarOportunidadesDeVendedor(VENDEDOR)).toEqual([]);
+  });
+
+  it('da forma a cada oportunidad', async () => {
+    spyOn(Oportunidad, 'find').mockReturnValue(
+      consultaFalsa([{ _id: 'o1', nombre: 'Deal', estado: 'Propuesta', actividades: ['a1', 'a2'] }]).consulta,
+    );
+    const [oportunidad] = await crmService.listarOportunidadesDeVendedor(VENDEDOR);
+    expect(oportunidad.cantidadActividades).toBe(2);
+  });
+
+  it('propaga el error de la base de datos', async () => {
+    const { consulta } = consultaFalsa(null);
+    consulta.lean = () => Promise.reject(new Error('sin conexión'));
+    spyOn(Oportunidad, 'find').mockReturnValue(consulta);
+    await expect(crmService.listarOportunidadesDeVendedor(VENDEDOR)).rejects.toThrow('sin conexión');
+  });
+});
+
+describe('darFormaOportunidad', () => {
+  it('expone empresa, contacto y producto con nombres en español y cuenta las actividades', () => {
+    const resultado = darFormaOportunidad({
+      _id: 'o1',
+      vendedorId: 'v1',
+      nombre: 'Implementación CRM',
+      estado: 'Negociación',
+      valorEstimado: 1000,
+      comision: 50,
+      fechaCierre: '2026-11-01',
+      fechaCreacion: '2026-09-01',
+      fechaActualizacion: '2026-10-01',
+      notas: ['Llamar el lunes'],
+      proximosPasos: 'Enviar contrato',
+      actividades: ['a1', 'a2', 'a3'],
+      empresaId: { _id: 'e1', nombre: 'Bancolombia', sector: 'Banca', ubicacion: 'Medellín' },
+      contactoId: { _id: 'c1', nombre: 'María', cargo: 'CTO', telefono: '+573001112233', email: 'm@b.co' },
+      productoId: { _id: 'p1', nombre: 'Software CRM' },
+      __v: 0,
+    });
+
+    expect(resultado).toEqual({
+      _id: 'o1',
+      nombre: 'Implementación CRM',
+      estado: 'Negociación',
+      valorEstimado: 1000,
+      comision: 50,
+      fechaCierre: '2026-11-01',
+      fechaCreacion: '2026-09-01',
+      fechaActualizacion: '2026-10-01',
+      notas: ['Llamar el lunes'],
+      proximosPasos: 'Enviar contrato',
+      cantidadActividades: 3,
+      empresa: { _id: 'e1', nombre: 'Bancolombia', sector: 'Banca', ubicacion: 'Medellín' },
+      contacto: { _id: 'c1', nombre: 'María', cargo: 'CTO', telefono: '+573001112233', email: 'm@b.co' },
+      producto: { _id: 'p1', nombre: 'Software CRM' },
+    });
+  });
+
+  it('usa null para relaciones ausentes o borradas y 0 actividades si no hay', () => {
+    const resultado = darFormaOportunidad({ _id: 'o2', nombre: 'Sin datos', empresaId: null });
+    expect(resultado.empresa).toBeNull();
+    expect(resultado.contacto).toBeNull();
+    expect(resultado.producto).toBeNull();
+    expect(resultado.cantidadActividades).toBe(0);
+    expect(resultado.notas).toEqual([]);
+  });
+
+  it('no expone un id sin poblar como si fuera la relación', () => {
+    const resultado = darFormaOportunidad({ _id: 'o3', nombre: 'Id suelto', contactoId: '64b000000000000000000001' });
+    expect(resultado.contacto).toBeNull();
   });
 });
