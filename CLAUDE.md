@@ -100,6 +100,10 @@ appends new endpoints here.
   the fields the CRM card needs) and cantidadActividades; [] if none; 400 
   for a missing or malformed vendedorId. Hard cap of 20, no pagination, 
   for the beta test phase (added 2026-10-09)
+- GET /api/v1/crm/oportunidades/:id — one opportunity in the same shape as 
+  the list above plus actividades (soonest fechaProgramada first); 404 if 
+  it does not exist, 400 for a malformed id. No ownership check in the 
+  beta (added 2026-10-09)
 - POST /api/v1/crm/vendedores/identificar — identify a salesperson by 
   phone number in E.164 format; returns vendedorId, nombre and rol. 
   404 if no match or the salesperson is inactive (added 2026-10-02)
