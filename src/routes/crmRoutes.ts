@@ -1,6 +1,6 @@
 import { Elysia } from 'elysia';
 import logger from '../utils/logger';
-import crmService, { campoDuplicadoVendedor } from '../services/crmService';
+import crmService, { campoDuplicadoVendedor, ESTADOS_OPORTUNIDAD } from '../services/crmService';
 
 // Respuesta JSON con su tipo de contenido (las Response construidas a mano no
 // lo reciben automáticamente de Elysia).
@@ -79,6 +79,34 @@ const crmRoutes = new Elysia({ prefix: '/crm' })
     } catch (error) {
       logger.error(`Error obteniendo la oportunidad: ${error}`);
       return respuestaJson({ error: 'No se pudo obtener la oportunidad.' }, 500);
+    }
+  });
+
+  // Cambio de etapa desde el frontend (2.3). Solo se guarda `estado`: la
+  // validación vive aquí y no en actualizarOportunidad, que también usa el agente.
+  crmRoutes.patch('/oportunidades/:id/estado', async ({ params, body }: { params: any; body: any }) => {
+    const id = typeof params?.id === 'string' ? params.id : '';
+    if (!/^[0-9a-f]{24}$/i.test(id)) {
+      return respuestaJson({ error: 'El id de la oportunidad no tiene un formato válido.' }, 400);
+    }
+    const estado = body && typeof body === 'object' ? body.estado : undefined;
+    if (typeof estado !== 'string' || !ESTADOS_OPORTUNIDAD.includes(estado)) {
+      return respuestaJson({ error: `Estado no válido. Usa uno de: ${ESTADOS_OPORTUNIDAD.join(', ')}.` }, 400);
+    }
+    try {
+      const actualizada = await crmService.actualizarOportunidad(id, { estado } as any);
+      if (!actualizada) {
+        return respuestaJson({ error: 'Oportunidad no encontrada.' }, 404);
+      }
+      const oportunidad = await crmService.obtenerOportunidadPorId(id);
+      if (!oportunidad) {
+        // Borrada entre la actualización y la relectura.
+        return respuestaJson({ error: 'Oportunidad no encontrada.' }, 404);
+      }
+      return respuestaJson(oportunidad, 200);
+    } catch (error) {
+      logger.error(`Error actualizando el estado de la oportunidad: ${error}`);
+      return respuestaJson({ error: 'No se pudo actualizar la oportunidad.' }, 500);
     }
   });
 

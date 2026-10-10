@@ -1,7 +1,7 @@
 import { describe, it, expect, spyOn, afterEach } from 'bun:test';
 import Vendedor from '../models/vendedorModel';
 import Oportunidad from '../models/oportunidadModel';
-import crmService, { campoDuplicadoVendedor, darFormaOportunidad } from './crmService';
+import crmService, { campoDuplicadoVendedor, darFormaOportunidad, ESTADOS_OPORTUNIDAD } from './crmService';
 
 describe('crearVendedor', () => {
   afterEach(() => {
@@ -266,5 +266,19 @@ describe('obtenerOportunidadPorId', () => {
     consulta.lean = () => Promise.reject(new Error('sin conexión'));
     spyOn(Oportunidad, 'findById').mockReturnValue(consulta);
     await expect(crmService.obtenerOportunidadPorId(OPORTUNIDAD)).rejects.toThrow('sin conexión');
+  });
+});
+
+describe('ESTADOS_OPORTUNIDAD', () => {
+  it('son exactamente las siete etapas del modelo', () => {
+    expect(ESTADOS_OPORTUNIDAD).toEqual([
+      'Prospecto',
+      'Calificado',
+      'Propuesta',
+      'Negociación',
+      'Cerrado Ganado',
+      'Cerrado Perdido',
+      'Seguimiento',
+    ]);
   });
 });
