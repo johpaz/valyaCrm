@@ -199,3 +199,72 @@ describe('darFormaOportunidad', () => {
     expect(resultado.contacto).toBeNull();
   });
 });
+
+const OPORTUNIDAD = '6ac97e3a5b2d4338d4498740';
+
+describe('obtenerOportunidadPorId', () => {
+  afterEach(() => {
+    (Oportunidad.findById as any).mockRestore?.();
+  });
+
+  it('busca por id y trae empresa, contacto, producto y actividades con sus campos', async () => {
+    const { consulta, llamadas } = consultaFalsa({ _id: OPORTUNIDAD, nombre: 'Deal', actividades: [] });
+    const findById = spyOn(Oportunidad, 'findById').mockReturnValue(consulta);
+
+    await crmService.obtenerOportunidadPorId(OPORTUNIDAD);
+
+    expect(String(findById.mock.calls[0][0])).toBe(OPORTUNIDAD);
+    expect(llamadas.populate).toEqual([
+      ['empresaId', 'nombre sector ubicacion'],
+      ['contactoId', 'nombre cargo telefono email'],
+      ['productoId', 'nombre'],
+      [
+        {
+          path: 'actividades',
+          select: 'nombre tipo descripcion estado prioridad fechaProgramada fechaLimite',
+          options: { sort: { fechaProgramada: 1 } },
+        },
+      ],
+    ]);
+  });
+
+  it('devuelve null si la oportunidad no existe', async () => {
+    spyOn(Oportunidad, 'findById').mockReturnValue(consultaFalsa(null).consulta);
+    expect(await crmService.obtenerOportunidadPorId(OPORTUNIDAD)).toBeNull();
+  });
+
+  it('da forma a la oportunidad e incluye solo las actividades pobladas', async () => {
+    const actividad = {
+      _id: 'a1',
+      nombre: 'Llamada',
+      tipo: 'Llamada de seguimiento',
+      descripcion: 'Definir cronograma',
+      estado: 'Pendiente',
+      prioridad: 'Alta',
+      fechaProgramada: '2026-10-20',
+      fechaLimite: null,
+    };
+    spyOn(Oportunidad, 'findById').mockReturnValue(
+      consultaFalsa({
+        _id: OPORTUNIDAD,
+        nombre: 'Deal',
+        estado: 'Negociación',
+        empresaId: { _id: 'e1', nombre: 'Bancolombia', sector: 'Banca', ubicacion: 'Medellín' },
+        actividades: [actividad, '64b000000000000000000002', null],
+      }).consulta,
+    );
+
+    const oportunidad = await crmService.obtenerOportunidadPorId(OPORTUNIDAD);
+
+    expect(oportunidad?.empresa).toEqual({ _id: 'e1', nombre: 'Bancolombia', sector: 'Banca', ubicacion: 'Medellín' });
+    expect(oportunidad?.contacto).toBeNull();
+    expect(oportunidad?.actividades).toEqual([actividad]);
+  });
+
+  it('propaga el error de la base de datos', async () => {
+    const { consulta } = consultaFalsa(null);
+    consulta.lean = () => Promise.reject(new Error('sin conexión'));
+    spyOn(Oportunidad, 'findById').mockReturnValue(consulta);
+    await expect(crmService.obtenerOportunidadPorId(OPORTUNIDAD)).rejects.toThrow('sin conexión');
+  });
+});

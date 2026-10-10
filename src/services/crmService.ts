@@ -387,6 +387,33 @@ async buscarVendedorPorTelefono(phoneNumber: string): Promise<VendedorType | nul
     }
   }
 
+  // Detalle de una oportunidad para el frontend (2.2): la misma forma que la
+  // lista (2.1) más sus actividades, la más próxima primero. null si no existe.
+  async obtenerOportunidadPorId(id: string): Promise<OportunidadConActividades | null> {
+    try {
+      const oportunidad = await Oportunidad.findById(id)
+        .populate('empresaId', 'nombre sector ubicacion')
+        .populate('contactoId', 'nombre cargo telefono email')
+        .populate('productoId', 'nombre')
+        .populate({
+          path: 'actividades',
+          select: 'nombre tipo descripcion estado prioridad fechaProgramada fechaLimite',
+          options: { sort: { fechaProgramada: 1 } },
+        })
+        .lean();
+      if (!oportunidad) return null;
+      return {
+        ...darFormaOportunidad(oportunidad),
+        actividades: ((oportunidad as any).actividades ?? [])
+          .map(relacionPoblada)
+          .filter((actividad: Record<string, unknown> | null) => actividad !== null),
+      };
+    } catch (error) {
+      logger.error(`Error obteniendo la oportunidad ${id}: ${(error as Error).message}`);
+      throw error;
+    }
+  }
+
   async buscarOportunidadesPorEmpresa(empresaId: string, limit: number = 10): Promise<OportunidadType[]> {
     try {
       const oportunidades = await Oportunidad.find({ empresaId: new mongoose.Types.ObjectId(empresaId) }).sort({ fechaActualizacion: -1 }).limit(limit);
@@ -555,6 +582,10 @@ export interface OportunidadParaLista {
   empresa: Record<string, unknown> | null;
   contacto: Record<string, unknown> | null;
   producto: Record<string, unknown> | null;
+}
+
+export interface OportunidadConActividades extends OportunidadParaLista {
+  actividades: Record<string, unknown>[];
 }
 
 // Una relación poblada es un objeto con _id; un id suelto (sin poblar o de un
