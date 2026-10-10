@@ -96,19 +96,30 @@ appends new endpoints here.
   salesperson
 - GET /api/v1/crm/oportunidades?vendedorId=… — a rep's 20 most recently 
   updated opportunities (fechaActualizacion is refreshed on every update 
-  by a findOneAndUpdate hook since 2.3), each with empresa, contacto and producto (only 
+  by a findOneAndUpdate hook since 2.3); each also carries valorCierre and 
+  fechaCierreReal since 2.10, each with empresa, contacto and producto (only 
   the fields the CRM card needs) and cantidadActividades; [] if none; 400 
   for a missing or malformed vendedorId. Hard cap of 20, no pagination, 
   for the beta test phase (added 2026-10-09)
 - GET /api/v1/crm/oportunidades/:id — one opportunity in the same shape as 
-  the list above plus actividades (soonest fechaProgramada first); 404 if 
+  the list above (including valorCierre and fechaCierreReal) plus actividades (soonest fechaProgramada first); 404 if 
   it does not exist, 400 for a malformed id. No ownership check in the 
   beta (added 2026-10-09)
 - PATCH /api/v1/crm/oportunidades/:id/estado — body { estado }: moves an 
   opportunity to one of the seven stages (exact spelling, e.g. 
   "Negociación"); only estado is saved; returns the opportunity in the 
   detail shape; 400 for an invalid stage or malformed id, 404 if it does 
-  not exist (added 2026-10-09)
+  not exist (added 2026-10-09). Refuses "Cerrado Ganado" (use /ganada); 
+  moving a won deal to another stage removes its sale (2.10)
+- POST /api/v1/crm/oportunidades/:id/ganada — body { valorCierre, 
+  fechaCierreReal?, comentario? }: the only way to mark a deal won, for the 
+  app and the agent's crear_venta_ganada alike. Records exactly one 
+  VentaGanada (unique oportunidadId) with the amount, the actual close 
+  date (a calendar day in Bogotá time; default today; not future, not 
+  before the creation day) and the comment 
+  (max 500); sets estado, valorCierre and fechaCierreReal; fechaCierre 
+  stays the expected date. 409 if already won; repairs an interrupted 
+  earlier attempt (added 2026-10-10)
 - POST /api/v1/crm/vendedores/identificar — identify a salesperson by 
   phone number in E.164 format; returns vendedorId, nombre and rol. 
   404 if no match or the salesperson is inactive (added 2026-10-02)

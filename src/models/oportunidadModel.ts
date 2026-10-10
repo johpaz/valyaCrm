@@ -15,7 +15,9 @@ const oportunidadSchema = new Schema({
   valorEstimado: { type: Number, default: 0 },
   fechaCreacion: { type: Date, default: Date.now },
   fechaActualizacion: { type: Date, default: Date.now },
+  // Fecha de cierre esperada; la real (al ganarse) va en fechaCierreReal (2.10).
   fechaCierre: { type: Date },
+  fechaCierreReal: { type: Date },
   valorCierre: { type: Number },
   comision:{type:Number},
   proximosPasos: { type: String },

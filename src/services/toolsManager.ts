@@ -113,7 +113,7 @@ const tools = [
   }),
   new DynamicTool({
     name: "actualizar_oportunidad",
-    description: "Actualiza los datos de una oportunidad existente.",
+    description: "Actualiza los datos de una oportunidad existente. No puede poner el estado 'Cerrado Ganado': para eso usa crear_venta_ganada. Si una oportunidad ganada pasa a otro estado, su venta se elimina.",
     func: async (input: string) => {
       const args = JSON.parse(input);
       const result = await crmService.actualizarOportunidad(args.id, args.campos_modificados);
@@ -176,7 +176,7 @@ const tools = [
   }),
   new DynamicTool({
     name: "crear_venta_ganada",
-    description: "Registra una nueva venta ganada en el CRM. Necesita el ID de la oportunidad, el valor y el ID del vendedor.",
+    description: "Marca una oportunidad como ganada y registra su venta (una sola por oportunidad). Necesita oportunidadId y valor (monto final, número mayor que cero); opcionales: fecha (fecha real de cierre, por defecto hoy, no futura) y comentario (máximo 500 caracteres). Es la única forma de poner una oportunidad en 'Cerrado Ganado'.",
     func: async (input: string) => {
       const args = JSON.parse(input);
       const result = await crmService.crearVentaGanada(args);

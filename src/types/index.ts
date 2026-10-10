@@ -72,6 +72,7 @@ export interface Oportunidad extends BaseEntity {
   fechaCreacion?: Date | null;
   fechaActualizacion?: Date | null;
   fechaCierre?: Date | null;
+  fechaCierreReal?: Date | null;
   valorCierre?: number | null;
   comision?: number | null;
   proximosPasos?: string | null;
@@ -111,6 +112,7 @@ export interface Producto extends BaseEntity {
 export interface VentaGanada extends BaseEntity {
   oportunidadId: string | any; // ObjectId
   valor: number;
+  comentario?: string;
   fecha?: Date | null;
   mes?: number;
   año?: number;

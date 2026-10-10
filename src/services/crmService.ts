@@ -9,6 +9,7 @@ import Actividad from '../models/actividadModel';
 import mongoose from 'mongoose';
 import { randomUUID } from 'crypto';
 import * as calendarService from './calendarService';
+import { AppError } from '../types/index';
 import type {
   Vendedor as VendedorType,
   Empresa as EmpresaType,
@@ -319,9 +320,30 @@ async buscarVendedorPorTelefono(phoneNumber: string): Promise<VendedorType | nul
       throw error;
     }
   }
- async actualizarOportunidad(oportunidadId: string, updateData: Partial<OportunidadType>): Promise<any> {
+  async actualizarOportunidad(oportunidadId: string, updateData: Partial<OportunidadType>): Promise<any> {
     try {
-      const oportunidadActualizada = await Oportunidad.findByIdAndUpdate(oportunidadId, { $set: updateData }, { new: true });
+      // 2.10: "Cerrado Ganado" solo se pone registrando la venta (marcarOportunidadComoGanada).
+      if (updateData?.estado === 'Cerrado Ganado') {
+        throw new AppError('Para marcar la oportunidad como ganada, registra la venta con su monto final.', 400);
+      }
+      // Al sacar de "Cerrado Ganado" una oportunidad, se borra su venta (decisión de la PM, 2026-10-10).
+      let reabriendoGanada = false;
+      if (updateData?.estado) {
+        const actual = await Oportunidad.findById(oportunidadId).lean();
+        reabriendoGanada = (actual as any)?.estado === 'Cerrado Ganado';
+      }
+      const cambios: Record<string, unknown> = { $set: updateData };
+      if (reabriendoGanada) {
+        // Sin monto ni fecha real en el $set: chocarían con su borrado en MongoDB.
+        const { valorCierre, fechaCierreReal, ...resto } = updateData as Record<string, unknown>;
+        cambios.$set = resto;
+        cambios.$unset = { valorCierre: '', fechaCierreReal: '' };
+      }
+      const oportunidadActualizada = await Oportunidad.findByIdAndUpdate(oportunidadId, cambios, { new: true });
+      if (reabriendoGanada) {
+        await VentaGanada.deleteOne({ oportunidadId: new mongoose.Types.ObjectId(oportunidadId) });
+        logger.info(`Oportunidad ${oportunidadId} reabierta: venta ganada eliminada`);
+      }
       if (oportunidadActualizada) {
         logger.info(`Oportunidad actualizada: ${oportunidadActualizada.nombre} (ID: ${oportunidadId})`);
       }
@@ -502,23 +524,95 @@ async buscarVendedorPorTelefono(phoneNumber: string): Promise<VendedorType | nul
 
 
   // --- Métodos para Ventas Ganadas ---
+  // Herramienta crear_venta_ganada del agente: usa la misma acción que la app (2.10).
   async crearVentaGanada(ventaData: Partial<VentaGanadaType>): Promise<VentaGanadaType> {
+    const { venta } = await this.marcarOportunidadComoGanada(String(ventaData.oportunidadId), {
+      valor: ventaData.valor as number,
+      fechaCierreReal: (ventaData as any).fecha ? new Date((ventaData as any).fecha) : undefined,
+      comentario: ventaData.comentario,
+    });
+    return venta;
+  }
+
+  // Única forma de marcar una oportunidad como ganada (2.10): una sola venta con
+  // monto, fecha real de cierre y comentario opcional; la fecha esperada
+  // (fechaCierre) no se toca. Repara un intento anterior interrumpido.
+  async marcarOportunidadComoGanada(
+    oportunidadId: string,
+    datos: { valor: number; fechaCierreReal?: Date; comentario?: string },
+  ): Promise<{ venta: VentaGanadaType }> {
+    const { valor, comentario } = datos;
+    if (typeof valor !== 'number' || !Number.isFinite(valor) || valor <= 0) {
+      throw new AppError('El monto final debe ser un número mayor que cero.', 400);
+    }
+    const comentarioLimpio = typeof comentario === 'string' ? comentario.trim() : undefined;
+    if (comentarioLimpio && comentarioLimpio.length > 500) {
+      throw new AppError('El comentario no puede superar los 500 caracteres.', 400);
+    }
+
+    const oportunidad: any = await Oportunidad.findById(oportunidadId).lean();
+    if (!oportunidad) {
+      throw new AppError('Oportunidad no encontrada.', 404);
+    }
+
+    const fecha = diaDeCierre(datos.fechaCierreReal);
+    if (!fechaDeCierreValida(fecha, oportunidad.fechaCreacion)) {
+      throw new AppError('La fecha de cierre no puede ser futura ni anterior a la creación de la oportunidad.', 400);
+    }
+    if (oportunidad.estado === 'Cerrado Ganado') {
+      throw new AppError('Esta oportunidad ya está marcada como ganada.', 409);
+    }
+
+    const datosVenta = {
+      valor,
+      fecha,
+      mes: fecha.getUTCMonth() + 1,
+      año: fecha.getUTCFullYear(),
+      comentario: comentarioLimpio || undefined,
+    };
+    const idOportunidad = new mongoose.Types.ObjectId(oportunidadId);
+    const existente = await VentaGanada.findOne({ oportunidadId: idOportunidad }).lean();
+
+    let venta: any;
+    let ventaNueva = false;
     try {
-      const nuevaVenta = new VentaGanada(ventaData);
-      await nuevaVenta.save();
-      logger.info(`Venta ganada registrada para la oportunidad: ${nuevaVenta.oportunidadId}`);
-
-      // Actualizar el estado de la oportunidad a 'Cerrado Ganado'
-      await Oportunidad.findByIdAndUpdate(nuevaVenta.oportunidadId, {
-        $set: { estado: 'Cerrado Ganado' }
-      });
-      logger.info(`Oportunidad ${nuevaVenta.oportunidadId} actualizada a 'Cerrado Ganado'`);
-
-      return nuevaVenta;
+      if (existente) {
+        // Intento anterior interrumpido: se completa con los datos de ahora.
+        const cambiosVenta: Record<string, unknown> = { $set: datosVenta };
+        if (!datosVenta.comentario) {
+          cambiosVenta.$unset = { comentario: '' };
+        }
+        venta = await VentaGanada.findOneAndUpdate({ oportunidadId: idOportunidad }, cambiosVenta, { new: true });
+      } else {
+        venta = await VentaGanada.create({ ...datosVenta, oportunidadId: idOportunidad, vendedorId: oportunidad.vendedorId });
+        ventaNueva = true;
+      }
     } catch (error) {
-      logger.error(`Error registrando venta ganada: ${(error as Error).message}`);
+      if ((error as { code?: number })?.code === 11000) {
+        throw new AppError('Esta oportunidad ya está marcada como ganada.', 409);
+      }
       throw error;
     }
+
+    let marcada;
+    try {
+      marcada = await Oportunidad.findByIdAndUpdate(oportunidadId, {
+        $set: { estado: 'Cerrado Ganado', valorCierre: valor, fechaCierreReal: fecha },
+      });
+    } catch (error) {
+      if (ventaNueva) {
+        await VentaGanada.deleteOne({ oportunidadId: idOportunidad });
+      }
+      logger.error(`Error marcando como ganada la oportunidad ${oportunidadId}: ${(error as Error).message}`);
+      throw error;
+    }
+    if (!marcada) {
+      // Borrada mientras tanto: su venta no debe quedar contando en el tablero.
+      await VentaGanada.deleteOne({ oportunidadId: idOportunidad });
+      throw new AppError('Oportunidad no encontrada.', 404);
+    }
+    logger.info(`Oportunidad ${oportunidadId} marcada como ganada`);
+    return { venta };
   }
 
   async obtenerVentasGanadasPorVendedor(vendedorId: string, limit: number = 50): Promise<VentaGanadaType[]> {
@@ -584,6 +678,8 @@ export interface OportunidadParaLista {
   notas: string[];
   proximosPasos: string | null;
   cantidadActividades: number;
+  valorCierre: number | null;
+  fechaCierreReal: unknown;
   empresa: Record<string, unknown> | null;
   contacto: Record<string, unknown> | null;
   producto: Record<string, unknown> | null;
@@ -591,6 +687,32 @@ export interface OportunidadParaLista {
 
 export interface OportunidadConActividades extends OportunidadParaLista {
   actividades: Record<string, unknown>[];
+}
+
+// La fecha real de cierre es un día de calendario en hora de Bogotá (los
+// vendedores de la beta están en Colombia): se guarda como medianoche UTC de ese
+// día, igual que la envía el selector de fecha de la app.
+const ZONA_HORARIA_NEGOCIO = 'America/Bogota';
+
+function diaEnBogota(instante: Date): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: ZONA_HORARIA_NEGOCIO }).format(instante);
+}
+
+function diaDeCierre(fecha?: Date): Date {
+  if (!fecha) return new Date(`${diaEnBogota(new Date())}T00:00:00Z`);
+  if (Number.isNaN(fecha.getTime())) return fecha;
+  const esSoloDia =
+    fecha.getUTCHours() === 0 && fecha.getUTCMinutes() === 0 && fecha.getUTCSeconds() === 0 && fecha.getUTCMilliseconds() === 0;
+  return esSoloDia ? fecha : new Date(`${diaEnBogota(fecha)}T00:00:00Z`);
+}
+
+// No puede ser futura ni anterior al día (en Bogotá) en que se creó la oportunidad.
+function fechaDeCierreValida(dia: Date, fechaCreacion?: Date | string): boolean {
+  if (Number.isNaN(dia.getTime())) return false;
+  const texto = dia.toISOString().slice(0, 10);
+  if (texto > diaEnBogota(new Date())) return false;
+  if (fechaCreacion && texto < diaEnBogota(new Date(fechaCreacion))) return false;
+  return true;
 }
 
 // Una relación poblada es un objeto con _id; un id suelto (sin poblar o de un
@@ -615,6 +737,8 @@ export function darFormaOportunidad(doc: any): OportunidadParaLista {
     notas: doc.notas ?? [],
     proximosPasos: doc.proximosPasos ?? null,
     cantidadActividades: doc.actividades?.length ?? 0,
+    valorCierre: doc.valorCierre ?? null,
+    fechaCierreReal: doc.fechaCierreReal ?? null,
     empresa: relacionPoblada(doc.empresaId),
     contacto: relacionPoblada(doc.contactoId),
     producto: relacionPoblada(doc.productoId),
