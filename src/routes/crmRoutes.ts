@@ -1,6 +1,7 @@
 import { Elysia } from 'elysia';
 import logger from '../utils/logger';
 import crmService, { campoDuplicadoVendedor, ESTADOS_OPORTUNIDAD } from '../services/crmService';
+import { AppError } from '../types/index';
 
 // Respuesta JSON con su tipo de contenido (las Response construidas a mano no
 // lo reciben automáticamente de Elysia).
@@ -9,6 +10,15 @@ const respuestaJson = (cuerpo: unknown, estado: number) =>
     status: estado,
     headers: { 'Content-Type': 'application/json; charset=utf-8' },
   });
+
+// Errores de negocio del servicio (AppError con estado 4xx) se devuelven tal
+// cual; cualquier otro fallo, con un mensaje genérico.
+const respuestaDeError = (error: unknown, mensajeGenerico: string) =>
+  error instanceof AppError && error.statusCode < 500
+    ? respuestaJson({ error: error.message }, error.statusCode)
+    : respuestaJson({ error: mensajeGenerico }, 500);
+
+const MENSAJE_FECHA_CIERRE = 'La fecha de cierre no puede ser futura ni anterior a la creación de la oportunidad.';
 
 const crmRoutes = new Elysia({ prefix: '/crm' })
   crmRoutes.post('/vendedores', async ({ body }: { body: any }) => {
@@ -106,7 +116,43 @@ const crmRoutes = new Elysia({ prefix: '/crm' })
       return respuestaJson(oportunidad, 200);
     } catch (error) {
       logger.error(`Error actualizando el estado de la oportunidad: ${error}`);
-      return respuestaJson({ error: 'No se pudo actualizar la oportunidad.' }, 500);
+      return respuestaDeError(error, 'No se pudo actualizar la oportunidad.');
+    }
+  });
+
+  // Marcar como ganada desde el frontend (2.10): una sola venta con monto final,
+  // fecha real de cierre (por defecto hoy) y comentario opcional.
+  crmRoutes.post('/oportunidades/:id/ganada', async ({ params, body }: { params: any; body: any }) => {
+    const id = typeof params?.id === 'string' ? params.id : '';
+    if (!/^[0-9a-f]{24}$/i.test(id)) {
+      return respuestaJson({ error: 'El id de la oportunidad no tiene un formato válido.' }, 400);
+    }
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return respuestaJson({ error: 'El monto final debe ser un número mayor que cero.' }, 400);
+    }
+    let fechaCierreReal: Date | undefined;
+    if (body.fechaCierreReal !== undefined && body.fechaCierreReal !== null) {
+      fechaCierreReal = typeof body.fechaCierreReal === 'string' && body.fechaCierreReal.trim()
+        ? new Date(body.fechaCierreReal)
+        : new Date(Number.NaN);
+      if (Number.isNaN(fechaCierreReal.getTime())) {
+        return respuestaJson({ error: MENSAJE_FECHA_CIERRE }, 400);
+      }
+    }
+    try {
+      await crmService.marcarOportunidadComoGanada(id, {
+        valor: body.valorCierre,
+        fechaCierreReal,
+        comentario: typeof body.comentario === 'string' ? body.comentario : undefined,
+      });
+      const oportunidad = await crmService.obtenerOportunidadPorId(id);
+      if (!oportunidad) {
+        return respuestaJson({ error: 'Oportunidad no encontrada.' }, 404);
+      }
+      return respuestaJson(oportunidad, 200);
+    } catch (error) {
+      logger.error(`Error marcando la oportunidad como ganada: ${error}`);
+      return respuestaDeError(error, 'No se pudo marcar la oportunidad como ganada.');
     }
   });
 

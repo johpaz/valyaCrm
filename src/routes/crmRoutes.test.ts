@@ -1,6 +1,7 @@
 import { describe, it, expect, spyOn, afterEach } from 'bun:test';
 import crmService from '../services/crmService';
 import crmRoutes from './crmRoutes';
+import { AppError } from '../types/index';
 
 const VENDEDOR = '6ac956a7dfb71b89c6dccc09';
 
@@ -202,5 +203,105 @@ describe('PATCH /crm/oportunidades/:id/estado', () => {
     const cuerpo = await respuesta.json();
     expect(cuerpo.error).toBe('No se pudo actualizar la oportunidad.');
     expect(JSON.stringify(cuerpo)).not.toContain('detalle interno');
+  });
+});
+
+function marcarGanada(id: string, cuerpo: unknown) {
+  return crmRoutes.handle(
+    new Request(`http://localhost/crm/oportunidades/${id}/ganada`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(cuerpo),
+    }),
+  );
+}
+
+describe('POST /crm/oportunidades/:id/ganada', () => {
+  afterEach(() => {
+    (crmService.marcarOportunidadComoGanada as any).mockRestore?.();
+    (crmService.obtenerOportunidadPorId as any).mockRestore?.();
+  });
+
+  it('marca la oportunidad como ganada y devuelve el detalle', async () => {
+    const marcar = spyOn(crmService, 'marcarOportunidadComoGanada').mockResolvedValue({ venta: {} } as any);
+    const detalle = { _id: OPORTUNIDAD, estado: 'Cerrado Ganado', valorCierre: 900 };
+    spyOn(crmService, 'obtenerOportunidadPorId').mockResolvedValue(detalle as any);
+
+    const respuesta = await marcarGanada(OPORTUNIDAD, { valorCierre: 900, fechaCierreReal: '2026-10-08', comentario: 'Firmado' });
+
+    expect(respuesta.status).toBe(200);
+    expect(respuesta.headers.get('content-type')).toContain('application/json');
+    expect(await respuesta.json()).toEqual(detalle);
+    expect(marcar).toHaveBeenCalledWith(OPORTUNIDAD, {
+      valor: 900,
+      fechaCierreReal: new Date('2026-10-08'),
+      comentario: 'Firmado',
+    });
+  });
+
+  it('sin fecha real deja que el servicio use hoy', async () => {
+    const marcar = spyOn(crmService, 'marcarOportunidadComoGanada').mockResolvedValue({ venta: {} } as any);
+    spyOn(crmService, 'obtenerOportunidadPorId').mockResolvedValue({ _id: OPORTUNIDAD } as any);
+    await marcarGanada(OPORTUNIDAD, { valorCierre: 900 });
+    expect(marcar).toHaveBeenCalledWith(OPORTUNIDAD, { valor: 900, fechaCierreReal: undefined, comentario: undefined });
+  });
+
+  it('pasa los errores del servicio con su estado y mensaje', async () => {
+    for (const [estado, mensaje] of [
+      [400, 'El monto final debe ser un número mayor que cero.'],
+      [404, 'Oportunidad no encontrada.'],
+      [409, 'Esta oportunidad ya está marcada como ganada.'],
+    ] as const) {
+      spyOn(crmService, 'marcarOportunidadComoGanada').mockRejectedValue(new AppError(mensaje, estado));
+      const respuesta = await marcarGanada(OPORTUNIDAD, { valorCierre: 900 });
+      expect(respuesta.status).toBe(estado);
+      expect((await respuesta.json()).error).toBe(mensaje);
+      (crmService.marcarOportunidadComoGanada as any).mockRestore();
+    }
+  });
+
+  it('rechaza con 400 una fecha que no es texto o no se entiende, sin llamar al servicio', async () => {
+    const marcar = spyOn(crmService, 'marcarOportunidadComoGanada');
+    for (const fechaCierreReal of [20261008, 'mañana', '']) {
+      const respuesta = await marcarGanada(OPORTUNIDAD, { valorCierre: 900, fechaCierreReal });
+      expect(respuesta.status).toBe(400);
+      expect((await respuesta.json()).error).toBe(
+        'La fecha de cierre no puede ser futura ni anterior a la creación de la oportunidad.',
+      );
+    }
+    expect(marcar).not.toHaveBeenCalled();
+  });
+
+  it('rechaza con 400 un id mal formado o un cuerpo que no es JSON, sin llamar al servicio', async () => {
+    const marcar = spyOn(crmService, 'marcarOportunidadComoGanada');
+    expect((await marcarGanada('123', { valorCierre: 900 })).status).toBe(400);
+    const sinJson = await crmRoutes.handle(
+      new Request(`http://localhost/crm/oportunidades/${OPORTUNIDAD}/ganada`, { method: 'POST', body: '900' }),
+    );
+    expect(sinJson.status).toBe(400);
+    expect(marcar).not.toHaveBeenCalled();
+  });
+
+  it('devuelve 500 con un mensaje genérico ante un fallo inesperado', async () => {
+    spyOn(crmService, 'marcarOportunidadComoGanada').mockRejectedValue(new Error('MongoServerError: detalle interno'));
+    const respuesta = await marcarGanada(OPORTUNIDAD, { valorCierre: 900 });
+    expect(respuesta.status).toBe(500);
+    const cuerpo = await respuesta.json();
+    expect(cuerpo.error).toBe('No se pudo marcar la oportunidad como ganada.');
+    expect(JSON.stringify(cuerpo)).not.toContain('detalle interno');
+  });
+});
+
+describe('PATCH /crm/oportunidades/:id/estado y el estado ganado', () => {
+  afterEach(() => {
+    (crmService.actualizarOportunidad as any).mockRestore?.();
+  });
+
+  it('devuelve el 400 del servicio cuando se intenta poner "Cerrado Ganado"', async () => {
+    const mensaje = 'Para marcar la oportunidad como ganada, registra la venta con su monto final.';
+    spyOn(crmService, 'actualizarOportunidad').mockRejectedValue(new AppError(mensaje, 400));
+    const respuesta = await enviarEstado(OPORTUNIDAD, { estado: 'Cerrado Ganado' });
+    expect(respuesta.status).toBe(400);
+    expect((await respuesta.json()).error).toBe(mensaje);
   });
 });
