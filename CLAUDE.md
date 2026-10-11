@@ -150,30 +150,16 @@ feature in docs/stories/) live in the valya_front repository.
   files and wait for approval before proceeding.
 
 ## Git workflow
-- Always create a branch before making changes; never work directly on 
-  the default branch. Note: this repo's default branch is `master`.
-- Branch conventions (short, lowercase, hyphenated):
-  - `feature/description` — new functionality 
-    (e.g. feature/connect-contacts-endpoint)
-  - `fix/description` — bug fixes (e.g. fix/crm-route-error)
-  - `explore/description` — investigation/reading code without changes
-  - `docs/description` — documentation-only changes (files under docs/ 
-    and CLAUDE.md, e.g. docs/add-claude-md)
-- Commits:
-  - Never commit directly to the default branch
-  - One commit per logical change
-  - Describe what and why in plain English
-  - Always show the proposed commit message and wait for approval 
-    before committing
-  - Never push without explicit approval
-  - Exception: the end-session, code-review, and merge-documentation 
-    skills make documentation-only commits/pushes autonomously after 
-    passing their docs-only self-check
-- Pull requests: write the title and description in Spanish, so the 
+- Default branch: `master`. Always work on a branch:
+  `feature/`, `fix/`, `docs/` (docs/ and CLAUDE.md only) or `explore/`
+  (reading code, no changes), short and hyphenated.
+- Never push or open a PR without explicit approval. Exception: the
+  end-session, code-review and merge-documentation skills push
+  documentation-only commits after passing their docs-only self-check.
+- Pull requests: write the title and description in Spanish, so the
   backend developer (johpaz) can follow them.
-- If something goes wrong with git: stop immediately, do not fix git 
-  errors by making more changes, explain in plain English, and wait 
-  for instruction.
+- If something goes wrong with git: stop, explain in plain English, and
+  wait for instruction; don't fix git errors with more changes.
 
 ## Security
 - Never read, display, or output the contents of any `.env` file
