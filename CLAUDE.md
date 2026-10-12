@@ -162,6 +162,8 @@ feature in docs/stories/) live in the valya_front repository.
   backend developer (johpaz) can follow them.
 - If something goes wrong with git: stop, explain in plain English, and
   wait for instruction; don't fix git errors with more changes.
+- A feature with PRs in both repos follows the merge-order rule in
+  valya_front's CLAUDE.md (Git workflow). (2026-10-11)
 
 ## Security
 - Never read, display, or output the contents of any `.env` file
