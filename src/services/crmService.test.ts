@@ -2,9 +2,10 @@ import { describe, it, expect, spyOn, afterEach, setSystemTime } from 'bun:test'
 import Vendedor from '../models/vendedorModel';
 import mongoose from 'mongoose';
 import Oportunidad from '../models/oportunidadModel';
+import Actividad from '../models/actividadModel';
 import VentaGanada from '../models/ventaGanadaModel';
 import { AppError } from '../types/index';
-import crmService, { campoDuplicadoVendedor, darFormaOportunidad, ESTADOS_OPORTUNIDAD } from './crmService';
+import crmService, { campoDuplicadoVendedor, darFormaOportunidad, estaAbierta, ESTADOS_OPORTUNIDAD } from './crmService';
 
 describe('crearVendedor', () => {
   afterEach(() => {
@@ -107,9 +108,20 @@ function consultaFalsa(resultado: unknown) {
 
 const VENDEDOR = '6ac956a7dfb71b89c6dccc09';
 
+// Consulta falsa de actividades: devuelve las que el filtro deja pasar, como la base.
+function actividadesFalsas(existentes: { _id: string; estado?: string }[]) {
+  return spyOn(Actividad, 'find').mockImplementation(((filtro: any) => {
+    const ids = filtro._id.$in.map(String);
+    const encontradas = existentes.filter((a) => ids.includes(a._id) && a.estado !== filtro.estado.$ne);
+    const consulta: any = { select: () => consulta, lean: () => Promise.resolve(encontradas) };
+    return consulta;
+  }) as any);
+}
+
 describe('listarOportunidadesDeVendedor', () => {
   afterEach(() => {
     (Oportunidad.find as any).mockRestore?.();
+    (Actividad.find as any).mockRestore?.();
   });
 
   it('busca las del vendedor, las más recientes primero, hasta 20, con empresa, contacto y producto', async () => {
@@ -137,8 +149,54 @@ describe('listarOportunidadesDeVendedor', () => {
     spyOn(Oportunidad, 'find').mockReturnValue(
       consultaFalsa([{ _id: 'o1', nombre: 'Deal', estado: 'Propuesta', actividades: ['a1', 'a2'] }]).consulta,
     );
+    actividadesFalsas([{ _id: 'a1', estado: 'Pendiente' }, { _id: 'a2', estado: 'Pendiente' }]);
     const [oportunidad] = await crmService.listarOportunidadesDeVendedor(VENDEDOR);
     expect(oportunidad.cantidadActividades).toBe(2);
+  });
+
+  it('cuenta en cada oportunidad solo sus actividades no finalizadas, con una sola consulta', async () => {
+    spyOn(Oportunidad, 'find').mockReturnValue(
+      consultaFalsa([
+        { _id: 'o1', nombre: 'Mixta', actividades: ['a1', 'a2', 'a3'] },
+        { _id: 'o2', nombre: 'Terminada', actividades: ['a4'] },
+        { _id: 'o3', nombre: 'Sin actividades', actividades: [] },
+        { _id: 'o4', nombre: 'Sin lista' },
+      ]).consulta,
+    );
+    const find = actividadesFalsas([
+      { _id: 'a1', estado: 'Pendiente' },
+      { _id: 'a2', estado: 'Finalizada' },
+      { _id: 'a3', estado: 'Bloqueado' },
+      { _id: 'a4', estado: 'Finalizada' },
+    ]);
+
+    const lista = await crmService.listarOportunidadesDeVendedor(VENDEDOR);
+
+    expect(lista.map((o) => o.actividadesAbiertas)).toEqual([2, 0, 0, 0]);
+    expect(lista.map((o) => o.cantidadActividades)).toEqual([3, 1, 0, 0]);
+    expect(find).toHaveBeenCalledTimes(1);
+    expect(find.mock.calls[0][0]).toEqual({
+      _id: { $in: ['a1', 'a2', 'a3', 'a4'] },
+      estado: { $ne: 'Finalizada' },
+    });
+  });
+
+  it('no cuenta una actividad que ya no existe', async () => {
+    spyOn(Oportunidad, 'find').mockReturnValue(
+      consultaFalsa([{ _id: 'o1', nombre: 'Deal', actividades: ['a1', 'borrada'] }]).consulta,
+    );
+    actividadesFalsas([{ _id: 'a1', estado: 'En progreso' }]);
+    const [oportunidad] = await crmService.listarOportunidadesDeVendedor(VENDEDOR);
+    expect(oportunidad.actividadesAbiertas).toBe(1);
+    expect(oportunidad.cantidadActividades).toBe(2);
+  });
+
+  it('no consulta actividades si ninguna oportunidad tiene', async () => {
+    spyOn(Oportunidad, 'find').mockReturnValue(consultaFalsa([{ _id: 'o1', nombre: 'Deal', actividades: [] }]).consulta);
+    const find = actividadesFalsas([]);
+    const [oportunidad] = await crmService.listarOportunidadesDeVendedor(VENDEDOR);
+    expect(oportunidad.actividadesAbiertas).toBe(0);
+    expect(find).not.toHaveBeenCalled();
   });
 
   it('propaga el error de la base de datos', async () => {
@@ -168,7 +226,7 @@ describe('darFormaOportunidad', () => {
       contactoId: { _id: 'c1', nombre: 'María', cargo: 'CTO', telefono: '+573001112233', email: 'm@b.co' },
       productoId: { _id: 'p1', nombre: 'Software CRM' },
       __v: 0,
-    });
+    }, 2);
 
     expect(resultado).toEqual({
       _id: 'o1',
@@ -182,6 +240,7 @@ describe('darFormaOportunidad', () => {
       notas: ['Llamar el lunes'],
       proximosPasos: 'Enviar contrato',
       cantidadActividades: 3,
+      actividadesAbiertas: 2,
       valorCierre: null,
       fechaCierreReal: null,
       empresa: { _id: 'e1', nombre: 'Bancolombia', sector: 'Banca', ubicacion: 'Medellín' },
@@ -191,7 +250,7 @@ describe('darFormaOportunidad', () => {
   });
 
   it('usa null para relaciones ausentes o borradas y 0 actividades si no hay', () => {
-    const resultado = darFormaOportunidad({ _id: 'o2', nombre: 'Sin datos', empresaId: null });
+    const resultado = darFormaOportunidad({ _id: 'o2', nombre: 'Sin datos', empresaId: null }, 0);
     expect(resultado.empresa).toBeNull();
     expect(resultado.contacto).toBeNull();
     expect(resultado.producto).toBeNull();
@@ -200,8 +259,22 @@ describe('darFormaOportunidad', () => {
   });
 
   it('no expone un id sin poblar como si fuera la relación', () => {
-    const resultado = darFormaOportunidad({ _id: 'o3', nombre: 'Id suelto', contactoId: '64b000000000000000000001' });
+    const resultado = darFormaOportunidad({ _id: 'o3', nombre: 'Id suelto', contactoId: '64b000000000000000000001' }, 0);
     expect(resultado.contacto).toBeNull();
+  });
+});
+
+describe('estaAbierta', () => {
+  it('solo una actividad finalizada deja de estar abierta', () => {
+    for (const estado of ['Pendiente', 'Backlog', 'En progreso', 'En revisión', 'Bloqueado']) {
+      expect(estaAbierta({ estado })).toBe(true);
+    }
+    expect(estaAbierta({ estado: 'Finalizada' })).toBe(false);
+  });
+
+  it('un estado ausente o inesperado cuenta como abierta', () => {
+    expect(estaAbierta({})).toBe(true);
+    expect(estaAbierta({ estado: 'finalizada' })).toBe(true);
   });
 });
 
@@ -264,6 +337,31 @@ describe('obtenerOportunidadPorId', () => {
     expect(oportunidad?.empresa).toEqual({ _id: 'e1', nombre: 'Bancolombia', sector: 'Banca', ubicacion: 'Medellín' });
     expect(oportunidad?.contacto).toBeNull();
     expect(oportunidad?.actividades).toEqual([actividad]);
+    expect(oportunidad?.actividadesAbiertas).toBe(1);
+  });
+
+  it('cuenta como abiertas las actividades devueltas que no están finalizadas', async () => {
+    const actividad = (id: string, estado: string) => ({ _id: id, nombre: id, estado });
+    spyOn(Oportunidad, 'findById').mockReturnValue(
+      consultaFalsa({
+        _id: OPORTUNIDAD,
+        nombre: 'Deal',
+        actividades: [actividad('a1', 'Backlog'), actividad('a2', 'Finalizada'), actividad('a3', 'En revisión')],
+      }).consulta,
+    );
+
+    const oportunidad = await crmService.obtenerOportunidadPorId(OPORTUNIDAD);
+
+    expect(oportunidad?.actividadesAbiertas).toBe(2);
+    expect(oportunidad?.actividadesAbiertas).toBe(
+      oportunidad?.actividades.filter((a) => a.estado !== 'Finalizada').length,
+    );
+    expect(oportunidad?.cantidadActividades).toBe(3);
+  });
+
+  it('una oportunidad sin actividades tiene 0 abiertas', async () => {
+    spyOn(Oportunidad, 'findById').mockReturnValue(consultaFalsa({ _id: OPORTUNIDAD, nombre: 'Deal' }).consulta);
+    expect((await crmService.obtenerOportunidadPorId(OPORTUNIDAD))?.actividadesAbiertas).toBe(0);
   });
 
   it('propaga el error de la base de datos', async () => {
