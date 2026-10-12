@@ -402,7 +402,20 @@ async buscarVendedorPorTelefono(phoneNumber: string): Promise<VendedorType | nul
         .populate('productoId', 'nombre')
         .lean();
       logger.info(`Lista de oportunidades para vendedor ${vendedorId}: ${oportunidades.length} encontradas.`);
-      return oportunidades.map(darFormaOportunidad);
+      // Las actividades abiertas de todas a la vez (2.11), no una consulta por oportunidad.
+      const idsActividades = oportunidades.flatMap((oportunidad: any) => oportunidad.actividades ?? []);
+      const abiertas = idsActividades.length
+        ? await Actividad.find({ _id: { $in: idsActividades }, estado: { $ne: ESTADO_ACTIVIDAD_FINALIZADA } })
+            .select('_id')
+            .lean()
+        : [];
+      const idsAbiertos = new Set(abiertas.map((actividad: any) => String(actividad._id)));
+      return oportunidades.map((oportunidad: any) =>
+        darFormaOportunidad(
+          oportunidad,
+          (oportunidad.actividades ?? []).filter((id: unknown) => idsAbiertos.has(String(id))).length,
+        ),
+      );
     } catch (error) {
       logger.error(`Error listando oportunidades del vendedor ${vendedorId}: ${(error as Error).message}`);
       throw error;
@@ -424,11 +437,12 @@ async buscarVendedorPorTelefono(phoneNumber: string): Promise<VendedorType | nul
         })
         .lean();
       if (!oportunidad) return null;
+      const actividades = ((oportunidad as any).actividades ?? [])
+        .map(relacionPoblada)
+        .filter((actividad: Record<string, unknown> | null) => actividad !== null);
       return {
-        ...darFormaOportunidad(oportunidad),
-        actividades: ((oportunidad as any).actividades ?? [])
-          .map(relacionPoblada)
-          .filter((actividad: Record<string, unknown> | null) => actividad !== null),
+        ...darFormaOportunidad(oportunidad, actividades.filter(estaAbierta).length),
+        actividades,
       };
     } catch (error) {
       logger.error(`Error obteniendo la oportunidad ${id}: ${(error as Error).message}`);
@@ -678,6 +692,8 @@ export interface OportunidadParaLista {
   notas: string[];
   proximosPasos: string | null;
   cantidadActividades: number;
+  // Las que aún no están "Finalizada" (2.11); cantidadActividades las cuenta todas.
+  actividadesAbiertas: number;
   valorCierre: number | null;
   fechaCierreReal: unknown;
   empresa: Record<string, unknown> | null;
@@ -723,8 +739,16 @@ function relacionPoblada(valor: unknown): Record<string, unknown> | null {
     : null;
 }
 
+// Una actividad sigue abierta mientras no esté "Finalizada"; un estado
+// inesperado o ausente cuenta como abierta en vez de desaparecer (2.11).
+const ESTADO_ACTIVIDAD_FINALIZADA = 'Finalizada';
+
+export function estaAbierta(actividad: { estado?: unknown }): boolean {
+  return actividad.estado !== ESTADO_ACTIVIDAD_FINALIZADA;
+}
+
 // Forma de cada oportunidad en la lista, con los nombres que usa el frontend (1.4).
-export function darFormaOportunidad(doc: any): OportunidadParaLista {
+export function darFormaOportunidad(doc: any, actividadesAbiertas: number = 0): OportunidadParaLista {
   return {
     _id: doc._id,
     nombre: doc.nombre,
@@ -737,6 +761,7 @@ export function darFormaOportunidad(doc: any): OportunidadParaLista {
     notas: doc.notas ?? [],
     proximosPasos: doc.proximosPasos ?? null,
     cantidadActividades: doc.actividades?.length ?? 0,
+    actividadesAbiertas,
     valorCierre: doc.valorCierre ?? null,
     fechaCierreReal: doc.fechaCierreReal ?? null,
     empresa: relacionPoblada(doc.empresaId),

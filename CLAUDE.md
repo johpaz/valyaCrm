@@ -98,7 +98,9 @@ appends new endpoints here.
   updated opportunities (fechaActualizacion is refreshed on every update 
   by a findOneAndUpdate hook since 2.3); each also carries valorCierre and 
   fechaCierreReal since 2.10, each with empresa, contacto and producto (only 
-  the fields the CRM card needs) and cantidadActividades; [] if none; 400 
+  the fields the CRM card needs), cantidadActividades (all) and 
+  actividadesAbiertas (those not "Finalizada"; also on the detail, 
+  added 2026-10-11); [] if none; 400 
   for a missing or malformed vendedorId. Hard cap of 20, no pagination, 
   for the beta test phase (added 2026-10-09)
 - GET /api/v1/crm/oportunidades/:id — one opportunity in the same shape as 
