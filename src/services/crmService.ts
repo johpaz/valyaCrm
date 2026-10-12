@@ -450,6 +450,43 @@ async buscarVendedorPorTelefono(phoneNumber: string): Promise<VendedorType | nul
     }
   }
 
+  // Actividades para el tablero Kanban del frontend (3.1): todas las abiertas y
+  // las finalizadas en los últimos 30 días, la más próxima primero, hasta 200,
+  // con su oportunidad (y la empresa, el producto y el contacto de esta) y su
+  // propio contacto. Separada de obtenerActividadesPorVendedor, que no cambia.
+  async listarActividadesDeVendedor(vendedorId: string, limite: number = LIMITE_ACTIVIDADES_TABLERO): Promise<ActividadParaLista[]> {
+    try {
+      const desde = new Date(Date.now() - DIAS_FINALIZADAS_VISIBLES * 24 * 60 * 60 * 1000);
+      const actividades = await Actividad.find({
+        vendedorId: new mongoose.Types.ObjectId(vendedorId),
+        $or: [
+          { estado: { $ne: ESTADO_ACTIVIDAD_FINALIZADA } },
+          { fechaFinReal: { $gte: desde } },
+          { fechaFinReal: null, fechaActualizacion: { $gte: desde } },
+        ],
+      })
+        .sort({ fechaProgramada: 1, _id: 1 })
+        .limit(limite)
+        .select(CAMPOS_ACTIVIDAD_TABLERO)
+        .populate({
+          path: 'oportunidadId',
+          select: 'nombre estado empresaId productoId contactoId',
+          populate: [
+            { path: 'empresaId', select: 'nombre sector' },
+            { path: 'productoId', select: 'nombre' },
+            { path: 'contactoId', select: CAMPOS_CONTACTO },
+          ],
+        })
+        .populate('contactoId', CAMPOS_CONTACTO)
+        .lean();
+      logger.info(`Actividades del tablero para vendedor ${vendedorId}: ${actividades.length} encontradas.`);
+      return actividades.map(darFormaActividad);
+    } catch (error) {
+      logger.error(`Error listando actividades del vendedor ${vendedorId}: ${(error as Error).message}`);
+      throw error;
+    }
+  }
+
   async buscarOportunidadesPorEmpresa(empresaId: string, limit: number = 10): Promise<OportunidadType[]> {
     try {
       const oportunidades = await Oportunidad.find({ empresaId: new mongoose.Types.ObjectId(empresaId) }).sort({ fechaActualizacion: -1 }).limit(limit);
@@ -734,7 +771,8 @@ function fechaDeCierreValida(dia: Date, fechaCreacion?: Date | string): boolean 
 // Una relación poblada es un objeto con _id; un id suelto (sin poblar o de un
 // registro borrado) no se expone como si fuera la relación.
 function relacionPoblada(valor: unknown): Record<string, unknown> | null {
-  return valor && typeof valor === 'object' && '_id' in (valor as object)
+  // Un ObjectId también responde a _id (Mongoose se lo añade), así que se descarta aparte.
+  return valor && typeof valor === 'object' && !(valor instanceof mongoose.Types.ObjectId) && '_id' in (valor as object)
     ? (valor as Record<string, unknown>)
     : null;
 }
@@ -745,6 +783,63 @@ const ESTADO_ACTIVIDAD_FINALIZADA = 'Finalizada';
 
 export function estaAbierta(actividad: { estado?: unknown }): boolean {
   return actividad.estado !== ESTADO_ACTIVIDAD_FINALIZADA;
+}
+
+// Tablero de actividades (3.1): las finalizadas solo se ven estos días después
+// de terminarse (o de su último cambio, si no tienen fecha de fin), y nunca más
+// de este número en total.
+const DIAS_FINALIZADAS_VISIBLES = 30;
+const LIMITE_ACTIVIDADES_TABLERO = 200;
+const CAMPOS_ACTIVIDAD_TABLERO =
+  'tipo nombre descripcion estado prioridad fechaProgramada fechaLimite fechaCreacion fechaActualizacion oportunidadId contactoId';
+const CAMPOS_CONTACTO = 'nombre cargo telefono email';
+
+export interface ActividadParaLista {
+  _id: unknown;
+  tipo: string | null;
+  nombre: string | null;
+  descripcion: string | null;
+  estado: string;
+  prioridad: string | null;
+  fechaProgramada: unknown;
+  fechaLimite: unknown;
+  fechaCreacion: unknown;
+  fechaActualizacion: unknown;
+  contacto: Record<string, unknown> | null;
+  oportunidad: {
+    _id: unknown;
+    nombre: string;
+    estado: string;
+    empresa: Record<string, unknown> | null;
+    producto: Record<string, unknown> | null;
+    contacto: Record<string, unknown> | null;
+  } | null;
+}
+
+// Forma de cada actividad del tablero, con los nombres que usa el frontend (como 2.1).
+export function darFormaActividad(doc: any): ActividadParaLista {
+  const oportunidad = relacionPoblada(doc.oportunidadId) as any;
+  return {
+    _id: doc._id,
+    tipo: doc.tipo ?? null,
+    nombre: doc.nombre ?? null,
+    descripcion: doc.descripcion ?? null,
+    estado: doc.estado,
+    prioridad: doc.prioridad ?? null,
+    fechaProgramada: doc.fechaProgramada ?? null,
+    fechaLimite: doc.fechaLimite ?? null,
+    fechaCreacion: doc.fechaCreacion ?? null,
+    fechaActualizacion: doc.fechaActualizacion ?? null,
+    contacto: relacionPoblada(doc.contactoId),
+    oportunidad: oportunidad && {
+      _id: oportunidad._id,
+      nombre: oportunidad.nombre,
+      estado: oportunidad.estado,
+      empresa: relacionPoblada(oportunidad.empresaId),
+      producto: relacionPoblada(oportunidad.productoId),
+      contacto: relacionPoblada(oportunidad.contactoId),
+    },
+  };
 }
 
 // Forma de cada oportunidad en la lista, con los nombres que usa el frontend (1.4).

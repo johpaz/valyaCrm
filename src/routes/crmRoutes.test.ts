@@ -60,6 +60,61 @@ describe('GET /crm/oportunidades', () => {
   });
 });
 
+describe('GET /crm/actividades', () => {
+  afterEach(() => {
+    (crmService.listarActividadesDeVendedor as any).mockRestore?.();
+    (crmService.buscarActividadesPorDescripcion as any).mockRestore?.();
+  });
+
+  it('devuelve 200 con las actividades del vendedor', async () => {
+    const lista = [{ _id: 'a1', estado: 'Pendiente', oportunidad: { nombre: 'Deal' } }];
+    const listar = spyOn(crmService, 'listarActividadesDeVendedor').mockResolvedValue(lista as any);
+
+    const respuesta = await pedir(`/crm/actividades?vendedorId=${VENDEDOR}`);
+
+    expect(respuesta.status).toBe(200);
+    expect(respuesta.headers.get('content-type')).toContain('application/json');
+    expect(await respuesta.json()).toEqual(lista);
+    expect(listar).toHaveBeenCalledWith(VENDEDOR);
+  });
+
+  it('devuelve 200 con una lista vacía si el vendedor no tiene actividades', async () => {
+    spyOn(crmService, 'listarActividadesDeVendedor').mockResolvedValue([]);
+    const respuesta = await pedir(`/crm/actividades?vendedorId=${VENDEDOR}`);
+    expect(respuesta.status).toBe(200);
+    expect(await respuesta.json()).toEqual([]);
+  });
+
+  it('devuelve 400 sin consultar la base de datos si falta el vendedorId o no es válido', async () => {
+    const listar = spyOn(crmService, 'listarActividadesDeVendedor');
+    const sinId = await pedir('/crm/actividades');
+    expect(sinId.status).toBe(400);
+    expect((await sinId.json()).error).toBe('El parámetro vendedorId es requerido.');
+    for (const valor of ['123', 'no-es-un-id']) {
+      const respuesta = await pedir(`/crm/actividades?vendedorId=${valor}`);
+      expect(respuesta.status).toBe(400);
+      expect((await respuesta.json()).error).toBe('El parámetro vendedorId no tiene un formato válido.');
+    }
+    expect(listar).not.toHaveBeenCalled();
+  });
+
+  it('devuelve 500 con un mensaje genérico si falla la base de datos', async () => {
+    spyOn(crmService, 'listarActividadesDeVendedor').mockRejectedValue(new Error('MongoServerError: detalle interno'));
+    const respuesta = await pedir(`/crm/actividades?vendedorId=${VENDEDOR}`);
+    expect(respuesta.status).toBe(500);
+    const cuerpo = await respuesta.json();
+    expect(cuerpo.error).toBe('No se pudieron obtener las actividades.');
+    expect(JSON.stringify(cuerpo)).not.toContain('detalle interno');
+  });
+
+  it('no confunde /actividades/buscar con la lista', async () => {
+    const listar = spyOn(crmService, 'listarActividadesDeVendedor');
+    spyOn(crmService, 'buscarActividadesPorDescripcion').mockResolvedValue([] as any);
+    await pedir('/crm/actividades/buscar?nombre=x');
+    expect(listar).not.toHaveBeenCalled();
+  });
+});
+
 const OPORTUNIDAD = '6ac97e3a5b2d4338d4498740';
 
 describe('GET /crm/oportunidades/:id', () => {

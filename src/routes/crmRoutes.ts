@@ -18,6 +18,17 @@ const respuestaDeError = (error: unknown, mensajeGenerico: string) =>
     ? respuestaJson({ error: error.message }, error.statusCode)
     : respuestaJson({ error: mensajeGenerico }, 500);
 
+// El vendedorId de las listas del frontend: requerido y con formato de id de MongoDB.
+const errorDeVendedorId = (vendedorId: string) => {
+  if (!vendedorId) {
+    return respuestaJson({ error: 'El parámetro vendedorId es requerido.' }, 400);
+  }
+  if (!/^[0-9a-f]{24}$/i.test(vendedorId)) {
+    return respuestaJson({ error: 'El parámetro vendedorId no tiene un formato válido.' }, 400);
+  }
+  return null;
+};
+
 const MENSAJE_FECHA_CIERRE = 'La fecha de cierre no puede ser futura ni anterior a la creación de la oportunidad.';
 
 const crmRoutes = new Elysia({ prefix: '/crm' })
@@ -59,18 +70,29 @@ const crmRoutes = new Elysia({ prefix: '/crm' })
   // Lista del tablero CRM del frontend (2.1): hasta 20 oportunidades del vendedor.
   crmRoutes.get('/oportunidades', async ({ query }: { query: any }) => {
     const vendedorId = typeof query?.vendedorId === 'string' ? query.vendedorId.trim() : '';
-    if (!vendedorId) {
-      return respuestaJson({ error: 'El parámetro vendedorId es requerido.' }, 400);
-    }
-    if (!/^[0-9a-f]{24}$/i.test(vendedorId)) {
-      return respuestaJson({ error: 'El parámetro vendedorId no tiene un formato válido.' }, 400);
-    }
+    const errorVendedor = errorDeVendedorId(vendedorId);
+    if (errorVendedor) return errorVendedor;
     try {
       const oportunidades = await crmService.listarOportunidadesDeVendedor(vendedorId);
       return respuestaJson(oportunidades, 200);
     } catch (error) {
       logger.error(`Error listando oportunidades: ${error}`);
       return respuestaJson({ error: 'No se pudieron obtener las oportunidades.' }, 500);
+    }
+  });
+
+  // Tablero Kanban del frontend (3.1): actividades abiertas y finalizadas
+  // recientes del vendedor, hasta 200.
+  crmRoutes.get('/actividades', async ({ query }: { query: any }) => {
+    const vendedorId = typeof query?.vendedorId === 'string' ? query.vendedorId.trim() : '';
+    const errorVendedor = errorDeVendedorId(vendedorId);
+    if (errorVendedor) return errorVendedor;
+    try {
+      const actividades = await crmService.listarActividadesDeVendedor(vendedorId);
+      return respuestaJson(actividades, 200);
+    } catch (error) {
+      logger.error(`Error listando actividades: ${error}`);
+      return respuestaJson({ error: 'No se pudieron obtener las actividades.' }, 500);
     }
   });
 

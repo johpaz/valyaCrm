@@ -5,7 +5,7 @@ import Oportunidad from '../models/oportunidadModel';
 import Actividad from '../models/actividadModel';
 import VentaGanada from '../models/ventaGanadaModel';
 import { AppError } from '../types/index';
-import crmService, { campoDuplicadoVendedor, darFormaOportunidad, estaAbierta, ESTADOS_OPORTUNIDAD } from './crmService';
+import crmService, { campoDuplicadoVendedor, darFormaActividad, darFormaOportunidad, estaAbierta, ESTADOS_OPORTUNIDAD } from './crmService';
 
 describe('crearVendedor', () => {
   afterEach(() => {
@@ -96,9 +96,10 @@ describe('campoDuplicadoVendedor', () => {
 
 // Consulta falsa de Mongoose que registra cómo se encadena.
 function consultaFalsa(resultado: unknown) {
-  const llamadas: Record<string, unknown[][]> = { sort: [], limit: [], populate: [] };
+  const llamadas: Record<string, unknown[][]> = { sort: [], limit: [], populate: [], select: [] };
   const consulta: any = {
     sort: (...a: unknown[]) => (llamadas.sort.push(a), consulta),
+    select: (...a: unknown[]) => (llamadas.select.push(a), consulta),
     limit: (...a: unknown[]) => (llamadas.limit.push(a), consulta),
     populate: (...a: unknown[]) => (llamadas.populate.push(a), consulta),
     lean: () => Promise.resolve(resultado),
@@ -369,6 +370,177 @@ describe('obtenerOportunidadPorId', () => {
     consulta.lean = () => Promise.reject(new Error('sin conexión'));
     spyOn(Oportunidad, 'findById').mockReturnValue(consulta);
     await expect(crmService.obtenerOportunidadPorId(OPORTUNIDAD)).rejects.toThrow('sin conexión');
+  });
+});
+
+// --- 3.1: actividades del tablero Kanban ---
+
+describe('listarActividadesDeVendedor', () => {
+  afterEach(() => {
+    (Actividad.find as any).mockRestore?.();
+    setSystemTime();
+  });
+
+  it('pide las del vendedor: abiertas siempre, finalizadas solo de los últimos 30 días', async () => {
+    setSystemTime(new Date('2026-10-31T12:00:00Z'));
+    const { consulta } = consultaFalsa([]);
+    const find = spyOn(Actividad, 'find').mockReturnValue(consulta);
+
+    await crmService.listarActividadesDeVendedor(VENDEDOR);
+
+    const filtro = find.mock.calls[0][0] as any;
+    expect(String(filtro.vendedorId)).toBe(VENDEDOR);
+    const desde = new Date('2026-10-01T12:00:00Z');
+    expect(filtro.$or).toEqual([
+      { estado: { $ne: 'Finalizada' } },
+      { fechaFinReal: { $gte: desde } },
+      { fechaFinReal: null, fechaActualizacion: { $gte: desde } },
+    ]);
+  });
+
+  it('las ordena la más próxima primero, hasta 200, con su oportunidad y su contacto', async () => {
+    const { consulta, llamadas } = consultaFalsa([]);
+    spyOn(Actividad, 'find').mockReturnValue(consulta);
+
+    await crmService.listarActividadesDeVendedor(VENDEDOR);
+
+    expect(llamadas.sort).toEqual([[{ fechaProgramada: 1, _id: 1 }]]);
+    expect(llamadas.limit).toEqual([[200]]);
+    expect(llamadas.select).toEqual([
+      ['tipo nombre descripcion estado prioridad fechaProgramada fechaLimite fechaCreacion fechaActualizacion oportunidadId contactoId'],
+    ]);
+    expect(llamadas.populate).toEqual([
+      [
+        {
+          path: 'oportunidadId',
+          select: 'nombre estado empresaId productoId contactoId',
+          populate: [
+            { path: 'empresaId', select: 'nombre sector' },
+            { path: 'productoId', select: 'nombre' },
+            { path: 'contactoId', select: 'nombre cargo telefono email' },
+          ],
+        },
+      ],
+      ['contactoId', 'nombre cargo telefono email'],
+    ]);
+  });
+
+  it('devuelve una lista vacía si el vendedor no tiene actividades', async () => {
+    spyOn(Actividad, 'find').mockReturnValue(consultaFalsa([]).consulta);
+    expect(await crmService.listarActividadesDeVendedor(VENDEDOR)).toEqual([]);
+  });
+
+  it('da forma a cada actividad', async () => {
+    spyOn(Actividad, 'find').mockReturnValue(
+      consultaFalsa([{ _id: 'a1', estado: 'Pendiente', oportunidadId: null }]).consulta,
+    );
+    const [actividad] = await crmService.listarActividadesDeVendedor(VENDEDOR);
+    expect(actividad).toMatchObject({ _id: 'a1', estado: 'Pendiente', oportunidad: null });
+  });
+
+  it('propaga el error de la base de datos', async () => {
+    const { consulta } = consultaFalsa(null);
+    consulta.lean = () => Promise.reject(new Error('sin conexión'));
+    spyOn(Actividad, 'find').mockReturnValue(consulta);
+    await expect(crmService.listarActividadesDeVendedor(VENDEDOR)).rejects.toThrow('sin conexión');
+  });
+});
+
+describe('darFormaActividad', () => {
+  const contacto = { _id: 'c1', nombre: 'María', cargo: 'CTO', telefono: '+573001112233', email: 'm@b.co' };
+
+  it('expone sus campos y su oportunidad con empresa, producto y contacto', () => {
+    const resultado = darFormaActividad({
+      _id: 'a1',
+      vendedorId: 'v1',
+      tipo: 'Llamada de seguimiento',
+      nombre: 'Llamada',
+      descripcion: 'Definir cronograma',
+      estado: 'En revisión',
+      prioridad: 'Alta',
+      fechaProgramada: '2026-10-20',
+      fechaLimite: '2026-10-25',
+      fechaCreacion: '2026-10-01',
+      fechaActualizacion: '2026-10-02',
+      contactoId: contacto,
+      oportunidadId: {
+        _id: 'o1',
+        nombre: 'Implementación CRM',
+        estado: 'Negociación',
+        empresaId: { _id: 'e1', nombre: 'Bancolombia', sector: 'Banca' },
+        productoId: { _id: 'p1', nombre: 'Software CRM' },
+        contactoId: { ...contacto, _id: 'c2', nombre: 'Juan' },
+      },
+      __v: 0,
+    });
+
+    expect(resultado).toEqual({
+      _id: 'a1',
+      tipo: 'Llamada de seguimiento',
+      nombre: 'Llamada',
+      descripcion: 'Definir cronograma',
+      estado: 'En revisión',
+      prioridad: 'Alta',
+      fechaProgramada: '2026-10-20',
+      fechaLimite: '2026-10-25',
+      fechaCreacion: '2026-10-01',
+      fechaActualizacion: '2026-10-02',
+      contacto,
+      oportunidad: {
+        _id: 'o1',
+        nombre: 'Implementación CRM',
+        estado: 'Negociación',
+        empresa: { _id: 'e1', nombre: 'Bancolombia', sector: 'Banca' },
+        producto: { _id: 'p1', nombre: 'Software CRM' },
+        contacto: { ...contacto, _id: 'c2', nombre: 'Juan' },
+      },
+    });
+  });
+
+  it('usa null para lo que falta o está borrado, nunca un id suelto', () => {
+    const sinNada = darFormaActividad({ _id: 'a2', estado: 'Backlog' });
+    expect(sinNada).toMatchObject({
+      tipo: null,
+      nombre: null,
+      descripcion: null,
+      prioridad: null,
+      fechaProgramada: null,
+      fechaLimite: null,
+      contacto: null,
+      oportunidad: null,
+    });
+
+    const idsSueltos = darFormaActividad({
+      _id: 'a3',
+      estado: 'Backlog',
+      contactoId: '64b000000000000000000001',
+      oportunidadId: '64b000000000000000000002',
+    });
+    expect(idsSueltos.contacto).toBeNull();
+    expect(idsSueltos.oportunidad).toBeNull();
+
+    const objectIds = darFormaActividad({
+      _id: 'a5',
+      estado: 'Backlog',
+      contactoId: new mongoose.Types.ObjectId(),
+      oportunidadId: new mongoose.Types.ObjectId(),
+    });
+    expect(objectIds.contacto).toBeNull();
+    expect(objectIds.oportunidad).toBeNull();
+
+    const oportunidadSinRelaciones = darFormaActividad({
+      _id: 'a4',
+      estado: 'Backlog',
+      oportunidadId: { _id: 'o1', nombre: 'Deal', estado: 'Prospecto', empresaId: null, productoId: '64b000000000000000000003' },
+    });
+    expect(oportunidadSinRelaciones.oportunidad).toEqual({
+      _id: 'o1',
+      nombre: 'Deal',
+      estado: 'Prospecto',
+      empresa: null,
+      producto: null,
+      contacto: null,
+    });
   });
 });
 

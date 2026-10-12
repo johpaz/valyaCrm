@@ -103,6 +103,13 @@ appends new endpoints here.
   added 2026-10-11); [] if none; 400 
   for a missing or malformed vendedorId. Hard cap of 20, no pagination, 
   for the beta test phase (added 2026-10-09)
+- GET /api/v1/crm/actividades?vendedorId=… — a rep's activities for the 
+  Kanban board: every one not "Finalizada", plus finished ones whose 
+  fechaFinReal (or, without it, fechaActualizacion) is within 30 days; 
+  soonest fechaProgramada first, max 200. Each with its own fields, contacto, 
+  and oportunidad (nombre, estado, empresa, producto, contacto); missing 
+  relations are null. [] if none; 400 for a missing or malformed vendedorId 
+  (added 2026-10-12)
 - GET /api/v1/crm/oportunidades/:id — one opportunity in the same shape as 
   the list above (including valorCierre and fechaCierreReal) plus actividades (soonest fechaProgramada first); 404 if 
   it does not exist, 400 for a malformed id. No ownership check in the 
@@ -162,6 +169,8 @@ feature in docs/stories/) live in the valya_front repository.
   backend developer (johpaz) can follow them.
 - If something goes wrong with git: stop, explain in plain English, and
   wait for instruction; don't fix git errors with more changes.
+- A feature with PRs in both repos follows the merge-order rule in
+  valya_front's CLAUDE.md (Git workflow). (2026-10-11)
 
 ## Security
 - Never read, display, or output the contents of any `.env` file
