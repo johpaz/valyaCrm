@@ -885,3 +885,39 @@ describe('actualizarOportunidad al reabrir: casos límite', () => {
     expect(e.borrarVenta).toHaveBeenCalled();
   });
 });
+
+// --- 3.2: el modelo de actividad refresca fechaActualizacion en cada actualización ---
+
+// Envía una actualización real por la cadena de Mongoose y captura lo que
+// llegaría a MongoDB, sin conectarse: se reemplaza solo la llamada final al driver.
+async function actualizacionDeActividadEnviada(actualizacion: Record<string, unknown>) {
+  const driver = spyOn(Actividad.collection, 'findOneAndUpdate').mockResolvedValue(null as any);
+  await Actividad.findByIdAndUpdate(new mongoose.Types.ObjectId(), actualizacion, { new: true });
+  return driver.mock.calls[0][1] as Record<string, any>;
+}
+
+describe('fechaActualizacion de las actividades', () => {
+  afterEach(() => {
+    (Actividad.collection.findOneAndUpdate as any).mockRestore?.();
+  });
+
+  it('se actualiza al cambiar el estado con $set', async () => {
+    const antes = Date.now();
+    const enviada = await actualizacionDeActividadEnviada({ $set: { estado: 'En progreso' } });
+    expect(enviada.$set.estado).toBe('En progreso');
+    expect(enviada.$set.fechaActualizacion).toBeInstanceOf(Date);
+    expect(enviada.$set.fechaActualizacion.getTime()).toBeGreaterThanOrEqual(antes);
+  });
+
+  it('se actualiza también al quitar un campo con $unset, sin perder el $unset', async () => {
+    const enviada = await actualizacionDeActividadEnviada({ $set: { estado: 'Pendiente' }, $unset: { fechaFinReal: 1 } });
+    expect(enviada.$set.fechaActualizacion).toBeInstanceOf(Date);
+    expect(enviada.$unset).toEqual({ fechaFinReal: 1 });
+  });
+
+  it('respeta una fecha que el llamante fije a propósito', async () => {
+    const fija = new Date('2026-01-01');
+    const enviada = await actualizacionDeActividadEnviada({ $set: { fechaActualizacion: fija } });
+    expect(enviada.$set.fechaActualizacion).toEqual(fija);
+  });
+});
