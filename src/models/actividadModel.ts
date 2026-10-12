@@ -37,6 +37,18 @@ actividadSchema.pre('save', function(next) {
   next();
 });
 
+// Las actualizaciones usan findByIdAndUpdate, que no ejecuta el pre('save'):
+// este gancho mantiene fechaActualizacion al día en todas ellas (el estado desde
+// el tablero, 3.2, y editarActividad), salvo que el llamante la fije a propósito.
+actividadSchema.pre('findOneAndUpdate', function(next) {
+  const actualizacion = this.getUpdate() as Record<string, any> | null;
+  const fijada = actualizacion?.fechaActualizacion ?? actualizacion?.$set?.fechaActualizacion;
+  if (!fijada) {
+    this.set({ fechaActualizacion: new Date() });
+  }
+  next();
+});
+
 const Actividad = mongoose.model('Actividad', actividadSchema);
 
 export default Actividad;

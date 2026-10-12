@@ -5,7 +5,7 @@ import Oportunidad from '../models/oportunidadModel';
 import Actividad from '../models/actividadModel';
 import VentaGanada from '../models/ventaGanadaModel';
 import { AppError } from '../types/index';
-import crmService, { campoDuplicadoVendedor, darFormaActividad, darFormaOportunidad, estaAbierta, ESTADOS_OPORTUNIDAD } from './crmService';
+import crmService, { campoDuplicadoVendedor, darFormaActividad, darFormaOportunidad, estaAbierta, ESTADOS_ACTIVIDAD, ESTADOS_OPORTUNIDAD } from './crmService';
 
 describe('crearVendedor', () => {
   afterEach(() => {
@@ -883,5 +883,147 @@ describe('actualizarOportunidad al reabrir: casos límite', () => {
     e.actualizarOp.mockResolvedValue(null as any);
     expect(await crmService.actualizarOportunidad(OP_ID, { estado: 'Propuesta' } as any)).toBeNull();
     expect(e.borrarVenta).toHaveBeenCalled();
+  });
+});
+
+// --- 3.2: el modelo de actividad refresca fechaActualizacion en cada actualización ---
+
+// Envía una actualización real por la cadena de Mongoose y captura lo que
+// llegaría a MongoDB, sin conectarse: se reemplaza solo la llamada final al driver.
+async function actualizacionDeActividadEnviada(actualizacion: Record<string, unknown>) {
+  const driver = spyOn(Actividad.collection, 'findOneAndUpdate').mockResolvedValue(null as any);
+  await Actividad.findByIdAndUpdate(new mongoose.Types.ObjectId(), actualizacion, { new: true });
+  return driver.mock.calls[0][1] as Record<string, any>;
+}
+
+describe('fechaActualizacion de las actividades', () => {
+  afterEach(() => {
+    (Actividad.collection.findOneAndUpdate as any).mockRestore?.();
+  });
+
+  it('se actualiza al cambiar el estado con $set', async () => {
+    const antes = Date.now();
+    const enviada = await actualizacionDeActividadEnviada({ $set: { estado: 'En progreso' } });
+    expect(enviada.$set.estado).toBe('En progreso');
+    expect(enviada.$set.fechaActualizacion).toBeInstanceOf(Date);
+    expect(enviada.$set.fechaActualizacion.getTime()).toBeGreaterThanOrEqual(antes);
+  });
+
+  it('se actualiza también al quitar un campo con $unset, sin perder el $unset', async () => {
+    const enviada = await actualizacionDeActividadEnviada({ $set: { estado: 'Pendiente' }, $unset: { fechaFinReal: 1 } });
+    expect(enviada.$set.fechaActualizacion).toBeInstanceOf(Date);
+    expect(enviada.$unset).toEqual({ fechaFinReal: 1 });
+  });
+
+  it('respeta una fecha que el llamante fije a propósito', async () => {
+    const fija = new Date('2026-01-01');
+    const enviada = await actualizacionDeActividadEnviada({ $set: { fechaActualizacion: fija } });
+    expect(enviada.$set.fechaActualizacion).toEqual(fija);
+  });
+});
+
+// --- 3.2: cambio de estado de una actividad desde el tablero ---
+
+const ACTIVIDAD = '6acc6ad38aef26f258702622';
+
+describe('ESTADOS_ACTIVIDAD', () => {
+  it('son exactamente los seis estados del modelo', () => {
+    expect(ESTADOS_ACTIVIDAD).toEqual(['Pendiente', 'Backlog', 'En progreso', 'En revisión', 'Bloqueado', 'Finalizada']);
+  });
+});
+
+describe('cambiarEstadoActividad', () => {
+  afterEach(() => {
+    (Actividad.findById as any).mockRestore?.();
+    (Actividad.findByIdAndUpdate as any).mockRestore?.();
+    setSystemTime();
+  });
+
+  // La actividad tal como está antes del cambio, y la actualización que se envía.
+  function conEstadoActual(estado: string | null) {
+    spyOn(Actividad, 'findById').mockReturnValue(consultaFalsa(estado === null ? null : { _id: ACTIVIDAD, estado }).consulta);
+    return spyOn(Actividad, 'findByIdAndUpdate').mockResolvedValue({ _id: ACTIVIDAD } as any);
+  }
+
+  it('entre estados abiertos solo cambia el estado', async () => {
+    const actualizar = conEstadoActual('Backlog');
+    expect(await crmService.cambiarEstadoActividad(ACTIVIDAD, 'En progreso')).toBe(true);
+    expect(actualizar.mock.calls[0][0]).toBe(ACTIVIDAD);
+    expect(actualizar.mock.calls[0][1]).toEqual({ $set: { estado: 'En progreso' } });
+  });
+
+  it('al pasar a Finalizada guarda el momento en que se terminó', async () => {
+    setSystemTime(new Date('2026-10-12T15:30:00Z'));
+    const actualizar = conEstadoActual('En revisión');
+    await crmService.cambiarEstadoActividad(ACTIVIDAD, 'Finalizada');
+    expect(actualizar.mock.calls[0][1]).toEqual({
+      $set: { estado: 'Finalizada', fechaFinReal: new Date('2026-10-12T15:30:00Z') },
+    });
+  });
+
+  it('al salir de Finalizada quita la fecha de fin', async () => {
+    const actualizar = conEstadoActual('Finalizada');
+    await crmService.cambiarEstadoActividad(ACTIVIDAD, 'Pendiente');
+    expect(actualizar.mock.calls[0][1]).toEqual({ $set: { estado: 'Pendiente' }, $unset: { fechaFinReal: 1 } });
+  });
+
+  it('Finalizada otra vez conserva la fecha de fin original', async () => {
+    const actualizar = conEstadoActual('Finalizada');
+    await crmService.cambiarEstadoActividad(ACTIVIDAD, 'Finalizada');
+    expect(actualizar.mock.calls[0][1]).toEqual({ $set: { estado: 'Finalizada' } });
+  });
+
+  it('devuelve false sin actualizar nada si la actividad no existe', async () => {
+    const actualizar = conEstadoActual(null);
+    expect(await crmService.cambiarEstadoActividad(ACTIVIDAD, 'Pendiente')).toBe(false);
+    expect(actualizar).not.toHaveBeenCalled();
+  });
+
+  it('devuelve false si la actividad se borra entre la lectura y la actualización', async () => {
+    conEstadoActual('Backlog').mockResolvedValue(null as any);
+    expect(await crmService.cambiarEstadoActividad(ACTIVIDAD, 'Pendiente')).toBe(false);
+  });
+
+  it('propaga el error de la base de datos', async () => {
+    conEstadoActual('Backlog').mockRejectedValue(new Error('sin conexión'));
+    await expect(crmService.cambiarEstadoActividad(ACTIVIDAD, 'Pendiente')).rejects.toThrow('sin conexión');
+  });
+});
+
+describe('obtenerActividadParaTablero', () => {
+  afterEach(() => {
+    (Actividad.findById as any).mockRestore?.();
+  });
+
+  it('trae la actividad con los mismos campos y relaciones que la lista del tablero', async () => {
+    const { consulta, llamadas } = consultaFalsa({ _id: ACTIVIDAD, estado: 'Finalizada', oportunidadId: null });
+    const findById = spyOn(Actividad, 'findById').mockReturnValue(consulta);
+
+    const actividad = await crmService.obtenerActividadParaTablero(ACTIVIDAD);
+
+    expect(findById.mock.calls[0][0]).toBe(ACTIVIDAD);
+    expect(llamadas.select).toEqual([
+      ['tipo nombre descripcion estado prioridad fechaProgramada fechaLimite fechaCreacion fechaActualizacion oportunidadId contactoId'],
+    ]);
+    expect(llamadas.populate).toEqual([
+      [
+        {
+          path: 'oportunidadId',
+          select: 'nombre estado empresaId productoId contactoId',
+          populate: [
+            { path: 'empresaId', select: 'nombre sector' },
+            { path: 'productoId', select: 'nombre' },
+            { path: 'contactoId', select: 'nombre cargo telefono email' },
+          ],
+        },
+      ],
+      ['contactoId', 'nombre cargo telefono email'],
+    ]);
+    expect(actividad).toMatchObject({ _id: ACTIVIDAD, estado: 'Finalizada', oportunidad: null, contacto: null });
+  });
+
+  it('devuelve null si la actividad no existe', async () => {
+    spyOn(Actividad, 'findById').mockReturnValue(consultaFalsa(null).consulta);
+    expect(await crmService.obtenerActividadParaTablero(ACTIVIDAD)).toBeNull();
   });
 });

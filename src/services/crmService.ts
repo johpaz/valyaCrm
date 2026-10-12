@@ -468,21 +468,53 @@ async buscarVendedorPorTelefono(phoneNumber: string): Promise<VendedorType | nul
         .sort({ fechaProgramada: 1, _id: 1 })
         .limit(limite)
         .select(CAMPOS_ACTIVIDAD_TABLERO)
-        .populate({
-          path: 'oportunidadId',
-          select: 'nombre estado empresaId productoId contactoId',
-          populate: [
-            { path: 'empresaId', select: 'nombre sector' },
-            { path: 'productoId', select: 'nombre' },
-            { path: 'contactoId', select: CAMPOS_CONTACTO },
-          ],
-        })
+        .populate(poblarOportunidadDeActividad())
         .populate('contactoId', CAMPOS_CONTACTO)
         .lean();
       logger.info(`Actividades del tablero para vendedor ${vendedorId}: ${actividades.length} encontradas.`);
       return actividades.map(darFormaActividad);
     } catch (error) {
       logger.error(`Error listando actividades del vendedor ${vendedorId}: ${(error as Error).message}`);
+      throw error;
+    }
+  }
+
+  // Una actividad en la misma forma que la lista del tablero (3.1); null si no existe.
+  async obtenerActividadParaTablero(id: string): Promise<ActividadParaLista | null> {
+    try {
+      const actividad = await Actividad.findById(id)
+        .select(CAMPOS_ACTIVIDAD_TABLERO)
+        .populate(poblarOportunidadDeActividad())
+        .populate('contactoId', CAMPOS_CONTACTO)
+        .lean();
+      return actividad ? darFormaActividad(actividad) : null;
+    } catch (error) {
+      logger.error(`Error obteniendo la actividad ${id}: ${(error as Error).message}`);
+      throw error;
+    }
+  }
+
+  // Cambio de estado desde el tablero (3.2). Solo cambia el estado; al pasar a
+  // "Finalizada" guarda cuándo se terminó y al salir de ella lo quita (PM,
+  // 2026-10-12). Devuelve false si la actividad no existe.
+  async cambiarEstadoActividad(id: string, estado: string): Promise<boolean> {
+    try {
+      const actual = await Actividad.findById(id).select('estado').lean();
+      if (!actual) return false;
+      const estaba = (actual as any).estado;
+      const actualizacion: Record<string, any> = { $set: { estado } };
+      if (estado === ESTADO_ACTIVIDAD_FINALIZADA && estaba !== ESTADO_ACTIVIDAD_FINALIZADA) {
+        actualizacion.$set.fechaFinReal = new Date();
+      } else if (estado !== ESTADO_ACTIVIDAD_FINALIZADA && estaba === ESTADO_ACTIVIDAD_FINALIZADA) {
+        actualizacion.$unset = { fechaFinReal: 1 };
+      }
+      const actualizada = await Actividad.findByIdAndUpdate(id, actualizacion, { new: true });
+      if (actualizada) {
+        logger.info(`Actividad ${id}: estado ${estaba} → ${estado}`);
+      }
+      return actualizada !== null;
+    } catch (error) {
+      logger.error(`Error cambiando el estado de la actividad ${id}: ${(error as Error).message}`);
       throw error;
     }
   }
@@ -712,6 +744,11 @@ async buscarVendedorPorTelefono(phoneNumber: string): Promise<VendedorType | nul
   }
 }
 
+// Los seis estados de actividad, leídos del modelo para que no se desincronicen.
+export const ESTADOS_ACTIVIDAD: readonly string[] = (
+  Actividad.schema.path('estado') as unknown as { enumValues: string[] }
+).enumValues;
+
 // Las siete etapas válidas, leídas del modelo para que no se desincronicen.
 export const ESTADOS_OPORTUNIDAD: readonly string[] = (
   Oportunidad.schema.path('estado') as unknown as { enumValues: string[] }
@@ -793,6 +830,18 @@ const LIMITE_ACTIVIDADES_TABLERO = 200;
 const CAMPOS_ACTIVIDAD_TABLERO =
   'tipo nombre descripcion estado prioridad fechaProgramada fechaLimite fechaCreacion fechaActualizacion oportunidadId contactoId';
 const CAMPOS_CONTACTO = 'nombre cargo telefono email';
+
+// La oportunidad de cada actividad, con la empresa, el producto y el contacto que
+// muestran la tarjeta y la ventana de la actividad.
+const poblarOportunidadDeActividad = () => ({
+  path: 'oportunidadId',
+  select: 'nombre estado empresaId productoId contactoId',
+  populate: [
+    { path: 'empresaId', select: 'nombre sector' },
+    { path: 'productoId', select: 'nombre' },
+    { path: 'contactoId', select: CAMPOS_CONTACTO },
+  ],
+});
 
 export interface ActividadParaLista {
   _id: unknown;
