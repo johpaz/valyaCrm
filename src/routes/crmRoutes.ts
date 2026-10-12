@@ -1,6 +1,6 @@
 import { Elysia } from 'elysia';
 import logger from '../utils/logger';
-import crmService, { campoDuplicadoVendedor, ESTADOS_OPORTUNIDAD } from '../services/crmService';
+import crmService, { campoDuplicadoVendedor, ESTADOS_ACTIVIDAD, ESTADOS_OPORTUNIDAD } from '../services/crmService';
 import { AppError } from '../types/index';
 
 // Respuesta JSON con su tipo de contenido (las Response construidas a mano no
@@ -93,6 +93,33 @@ const crmRoutes = new Elysia({ prefix: '/crm' })
     } catch (error) {
       logger.error(`Error listando actividades: ${error}`);
       return respuestaJson({ error: 'No se pudieron obtener las actividades.' }, 500);
+    }
+  });
+
+  // Cambio de estado desde el tablero Kanban (3.2). Solo se guarda `estado` (y la
+  // fecha de fin que va con él); devuelve la actividad en la forma de la lista (3.1).
+  crmRoutes.patch('/actividades/:id/estado', async ({ params, body }: { params: any; body: any }) => {
+    const id = typeof params?.id === 'string' ? params.id : '';
+    if (!/^[0-9a-f]{24}$/i.test(id)) {
+      return respuestaJson({ error: 'El id de la actividad no tiene un formato válido.' }, 400);
+    }
+    const estado = body && typeof body === 'object' ? body.estado : undefined;
+    if (typeof estado !== 'string' || !ESTADOS_ACTIVIDAD.includes(estado)) {
+      return respuestaJson({ error: `Estado no válido. Usa uno de: ${ESTADOS_ACTIVIDAD.join(', ')}.` }, 400);
+    }
+    try {
+      if (!(await crmService.cambiarEstadoActividad(id, estado))) {
+        return respuestaJson({ error: 'Actividad no encontrada.' }, 404);
+      }
+      const actividad = await crmService.obtenerActividadParaTablero(id);
+      if (!actividad) {
+        // Borrada entre la actualización y la relectura.
+        return respuestaJson({ error: 'Actividad no encontrada.' }, 404);
+      }
+      return respuestaJson(actividad, 200);
+    } catch (error) {
+      logger.error(`Error actualizando el estado de la actividad: ${error}`);
+      return respuestaJson({ error: 'No se pudo actualizar la actividad.' }, 500);
     }
   });
 

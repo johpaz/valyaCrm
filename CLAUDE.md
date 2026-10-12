@@ -110,6 +110,13 @@ appends new endpoints here.
   and oportunidad (nombre, estado, empresa, producto, contacto); missing 
   relations are null. [] if none; 400 for a missing or malformed vendedorId 
   (added 2026-10-12)
+- PATCH /api/v1/crm/actividades/:id/estado — body { estado }: moves an 
+  activity to one of its six statuses (exact spelling); only estado is 
+  saved, plus fechaFinReal set on entering "Finalizada" and removed on 
+  leaving it; returns the activity in the board-list shape above; 400 for 
+  an invalid status or malformed id, 404 if it does not exist. Every 
+  activity update refreshes fechaActualizacion (findOneAndUpdate hook) 
+  (added 2026-10-12)
 - GET /api/v1/crm/oportunidades/:id — one opportunity in the same shape as 
   the list above (including valorCierre and fechaCierreReal) plus actividades (soonest fechaProgramada first); 404 if 
   it does not exist, 400 for a malformed id. No ownership check in the 

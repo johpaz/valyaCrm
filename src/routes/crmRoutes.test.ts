@@ -368,3 +368,107 @@ describe('PATCH /crm/oportunidades/:id/estado y el estado ganado', () => {
     expect((await respuesta.json()).error).toBe(mensaje);
   });
 });
+
+// --- 3.2: cambio de estado de una actividad desde el tablero ---
+
+const ACTIVIDAD = '6acc6ad38aef26f258702622';
+
+function enviarEstadoActividad(id: string, cuerpo: unknown) {
+  return crmRoutes.handle(
+    new Request(`http://localhost/crm/actividades/${id}/estado`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(cuerpo),
+    }),
+  );
+}
+
+describe('PATCH /crm/actividades/:id/estado', () => {
+  afterEach(() => {
+    (crmService.cambiarEstadoActividad as any).mockRestore?.();
+    (crmService.obtenerActividadParaTablero as any).mockRestore?.();
+  });
+
+  it('guarda el nuevo estado y devuelve la actividad releída en la forma del tablero', async () => {
+    const cambiar = spyOn(crmService, 'cambiarEstadoActividad').mockResolvedValue(true);
+    const releida = { _id: ACTIVIDAD, estado: 'Finalizada', oportunidad: { nombre: 'Deal' }, contacto: null };
+    const obtener = spyOn(crmService, 'obtenerActividadParaTablero').mockResolvedValue(releida as any);
+
+    const respuesta = await enviarEstadoActividad(ACTIVIDAD, { estado: 'Finalizada' });
+
+    expect(respuesta.status).toBe(200);
+    expect(respuesta.headers.get('content-type')).toContain('application/json');
+    expect(await respuesta.json()).toEqual(releida);
+    expect(cambiar).toHaveBeenCalledWith(ACTIVIDAD, 'Finalizada');
+    expect(obtener).toHaveBeenCalledWith(ACTIVIDAD);
+  });
+
+  it('solo pasa el estado aunque el cuerpo traiga otros campos', async () => {
+    const cambiar = spyOn(crmService, 'cambiarEstadoActividad').mockResolvedValue(true);
+    spyOn(crmService, 'obtenerActividadParaTablero').mockResolvedValue({ _id: ACTIVIDAD } as any);
+    await enviarEstadoActividad(ACTIVIDAD, { estado: 'Bloqueado', nombre: 'Otro', fechaFinReal: '2020-01-01' });
+    expect(cambiar.mock.calls).toEqual([[ACTIVIDAD, 'Bloqueado']]);
+  });
+
+  it('acepta cada uno de los seis estados escritos exactamente', async () => {
+    const cambiar = spyOn(crmService, 'cambiarEstadoActividad').mockResolvedValue(true);
+    spyOn(crmService, 'obtenerActividadParaTablero').mockResolvedValue({ _id: ACTIVIDAD } as any);
+    for (const estado of ['Pendiente', 'Backlog', 'En progreso', 'En revisión', 'Bloqueado', 'Finalizada']) {
+      expect((await enviarEstadoActividad(ACTIVIDAD, { estado })).status).toBe(200);
+    }
+    expect(cambiar).toHaveBeenCalledTimes(6);
+  });
+
+  it('rechaza con 400 un estado ausente, mal escrito o que no es texto, sin guardar nada', async () => {
+    const cambiar = spyOn(crmService, 'cambiarEstadoActividad');
+    for (const cuerpo of [{}, { estado: 'finalizada' }, { estado: 'Completada' }, { estado: 3 }, { estado: null }, []]) {
+      const respuesta = await enviarEstadoActividad(ACTIVIDAD, cuerpo);
+      expect(respuesta.status).toBe(400);
+      expect((await respuesta.json()).error).toBe(
+        'Estado no válido. Usa uno de: Pendiente, Backlog, En progreso, En revisión, Bloqueado, Finalizada.',
+      );
+    }
+    expect(cambiar).not.toHaveBeenCalled();
+  });
+
+  it('rechaza con 400 un cuerpo que no es JSON', async () => {
+    const cambiar = spyOn(crmService, 'cambiarEstadoActividad');
+    const respuesta = await crmRoutes.handle(
+      new Request(`http://localhost/crm/actividades/${ACTIVIDAD}/estado`, { method: 'PATCH', body: 'Finalizada' }),
+    );
+    expect(respuesta.status).toBe(400);
+    expect(cambiar).not.toHaveBeenCalled();
+  });
+
+  it('devuelve 400 si el id no tiene formato válido, sin guardar nada', async () => {
+    const cambiar = spyOn(crmService, 'cambiarEstadoActividad');
+    const respuesta = await enviarEstadoActividad('abc', { estado: 'Pendiente' });
+    expect(respuesta.status).toBe(400);
+    expect((await respuesta.json()).error).toBe('El id de la actividad no tiene un formato válido.');
+    expect(cambiar).not.toHaveBeenCalled();
+  });
+
+  it('devuelve 404 si la actividad no existe', async () => {
+    spyOn(crmService, 'cambiarEstadoActividad').mockResolvedValue(false);
+    const obtener = spyOn(crmService, 'obtenerActividadParaTablero');
+    const respuesta = await enviarEstadoActividad(ACTIVIDAD, { estado: 'Pendiente' });
+    expect(respuesta.status).toBe(404);
+    expect((await respuesta.json()).error).toBe('Actividad no encontrada.');
+    expect(obtener).not.toHaveBeenCalled();
+  });
+
+  it('devuelve 404 si la actividad se borra antes de releerla', async () => {
+    spyOn(crmService, 'cambiarEstadoActividad').mockResolvedValue(true);
+    spyOn(crmService, 'obtenerActividadParaTablero').mockResolvedValue(null);
+    expect((await enviarEstadoActividad(ACTIVIDAD, { estado: 'Pendiente' })).status).toBe(404);
+  });
+
+  it('devuelve 500 con un mensaje genérico si falla la base de datos', async () => {
+    spyOn(crmService, 'cambiarEstadoActividad').mockRejectedValue(new Error('MongoServerError: detalle interno'));
+    const respuesta = await enviarEstadoActividad(ACTIVIDAD, { estado: 'Pendiente' });
+    expect(respuesta.status).toBe(500);
+    const cuerpo = await respuesta.json();
+    expect(cuerpo.error).toBe('No se pudo actualizar la actividad.');
+    expect(JSON.stringify(cuerpo)).not.toContain('detalle interno');
+  });
+});
