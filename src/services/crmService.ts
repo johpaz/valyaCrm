@@ -748,7 +748,7 @@ export function estaAbierta(actividad: { estado?: unknown }): boolean {
 }
 
 // Forma de cada oportunidad en la lista, con los nombres que usa el frontend (1.4).
-export function darFormaOportunidad(doc: any, actividadesAbiertas: number = 0): OportunidadParaLista {
+export function darFormaOportunidad(doc: any, actividadesAbiertas: number): OportunidadParaLista {
   return {
     _id: doc._id,
     nombre: doc.nombre,

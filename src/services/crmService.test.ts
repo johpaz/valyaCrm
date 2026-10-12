@@ -226,7 +226,7 @@ describe('darFormaOportunidad', () => {
       contactoId: { _id: 'c1', nombre: 'María', cargo: 'CTO', telefono: '+573001112233', email: 'm@b.co' },
       productoId: { _id: 'p1', nombre: 'Software CRM' },
       __v: 0,
-    });
+    }, 2);
 
     expect(resultado).toEqual({
       _id: 'o1',
@@ -240,7 +240,7 @@ describe('darFormaOportunidad', () => {
       notas: ['Llamar el lunes'],
       proximosPasos: 'Enviar contrato',
       cantidadActividades: 3,
-      actividadesAbiertas: 0,
+      actividadesAbiertas: 2,
       valorCierre: null,
       fechaCierreReal: null,
       empresa: { _id: 'e1', nombre: 'Bancolombia', sector: 'Banca', ubicacion: 'Medellín' },
@@ -250,7 +250,7 @@ describe('darFormaOportunidad', () => {
   });
 
   it('usa null para relaciones ausentes o borradas y 0 actividades si no hay', () => {
-    const resultado = darFormaOportunidad({ _id: 'o2', nombre: 'Sin datos', empresaId: null });
+    const resultado = darFormaOportunidad({ _id: 'o2', nombre: 'Sin datos', empresaId: null }, 0);
     expect(resultado.empresa).toBeNull();
     expect(resultado.contacto).toBeNull();
     expect(resultado.producto).toBeNull();
@@ -259,7 +259,7 @@ describe('darFormaOportunidad', () => {
   });
 
   it('no expone un id sin poblar como si fuera la relación', () => {
-    const resultado = darFormaOportunidad({ _id: 'o3', nombre: 'Id suelto', contactoId: '64b000000000000000000001' });
+    const resultado = darFormaOportunidad({ _id: 'o3', nombre: 'Id suelto', contactoId: '64b000000000000000000001' }, 0);
     expect(resultado.contacto).toBeNull();
   });
 });
