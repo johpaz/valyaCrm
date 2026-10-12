@@ -465,7 +465,7 @@ async buscarVendedorPorTelefono(phoneNumber: string): Promise<VendedorType | nul
           { fechaFinReal: null, fechaActualizacion: { $gte: desde } },
         ],
       })
-        .sort({ fechaProgramada: 1 })
+        .sort({ fechaProgramada: 1, _id: 1 })
         .limit(limite)
         .select(CAMPOS_ACTIVIDAD_TABLERO)
         .populate({
@@ -771,7 +771,8 @@ function fechaDeCierreValida(dia: Date, fechaCreacion?: Date | string): boolean 
 // Una relación poblada es un objeto con _id; un id suelto (sin poblar o de un
 // registro borrado) no se expone como si fuera la relación.
 function relacionPoblada(valor: unknown): Record<string, unknown> | null {
-  return valor && typeof valor === 'object' && '_id' in (valor as object)
+  // Un ObjectId también responde a _id (Mongoose se lo añade), así que se descarta aparte.
+  return valor && typeof valor === 'object' && !(valor instanceof mongoose.Types.ObjectId) && '_id' in (valor as object)
     ? (valor as Record<string, unknown>)
     : null;
 }

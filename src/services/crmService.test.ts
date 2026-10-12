@@ -404,7 +404,7 @@ describe('listarActividadesDeVendedor', () => {
 
     await crmService.listarActividadesDeVendedor(VENDEDOR);
 
-    expect(llamadas.sort).toEqual([[{ fechaProgramada: 1 }]]);
+    expect(llamadas.sort).toEqual([[{ fechaProgramada: 1, _id: 1 }]]);
     expect(llamadas.limit).toEqual([[200]]);
     expect(llamadas.select).toEqual([
       ['tipo nombre descripcion estado prioridad fechaProgramada fechaLimite fechaCreacion fechaActualizacion oportunidadId contactoId'],
@@ -518,6 +518,15 @@ describe('darFormaActividad', () => {
     });
     expect(idsSueltos.contacto).toBeNull();
     expect(idsSueltos.oportunidad).toBeNull();
+
+    const objectIds = darFormaActividad({
+      _id: 'a5',
+      estado: 'Backlog',
+      contactoId: new mongoose.Types.ObjectId(),
+      oportunidadId: new mongoose.Types.ObjectId(),
+    });
+    expect(objectIds.contacto).toBeNull();
+    expect(objectIds.oportunidad).toBeNull();
 
     const oportunidadSinRelaciones = darFormaActividad({
       _id: 'a4',
