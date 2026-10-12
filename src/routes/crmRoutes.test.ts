@@ -440,6 +440,19 @@ describe('PATCH /crm/actividades/:id/estado', () => {
     expect(cambiar).not.toHaveBeenCalled();
   });
 
+  it('rechaza con 400 un cuerpo de formulario aunque traiga un estado válido', async () => {
+    const cambiar = spyOn(crmService, 'cambiarEstadoActividad');
+    const respuesta = await crmRoutes.handle(
+      new Request(`http://localhost/crm/actividades/${ACTIVIDAD}/estado`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'estado=Finalizada',
+      }),
+    );
+    expect(respuesta.status).toBe(400);
+    expect(cambiar).not.toHaveBeenCalled();
+  });
+
   it('devuelve 400 si el id no tiene formato válido, sin guardar nada', async () => {
     const cambiar = spyOn(crmService, 'cambiarEstadoActividad');
     const respuesta = await enviarEstadoActividad('abc', { estado: 'Pendiente' });

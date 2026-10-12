@@ -98,12 +98,14 @@ const crmRoutes = new Elysia({ prefix: '/crm' })
 
   // Cambio de estado desde el tablero Kanban (3.2). Solo se guarda `estado` (y la
   // fecha de fin que va con él); devuelve la actividad en la forma de la lista (3.1).
-  crmRoutes.patch('/actividades/:id/estado', async ({ params, body }: { params: any; body: any }) => {
+  crmRoutes.patch('/actividades/:id/estado', async ({ params, body, request }: { params: any; body: any; request: Request }) => {
     const id = typeof params?.id === 'string' ? params.id : '';
     if (!/^[0-9a-f]{24}$/i.test(id)) {
       return respuestaJson({ error: 'El id de la actividad no tiene un formato válido.' }, 400);
     }
-    const estado = body && typeof body === 'object' ? body.estado : undefined;
+    // Solo JSON: Elysia también convierte un formulario en objeto.
+    const esJson = (request.headers.get('content-type') ?? '').includes('application/json');
+    const estado = esJson && body && typeof body === 'object' ? body.estado : undefined;
     if (typeof estado !== 'string' || !ESTADOS_ACTIVIDAD.includes(estado)) {
       return respuestaJson({ error: `Estado no válido. Usa uno de: ${ESTADOS_ACTIVIDAD.join(', ')}.` }, 400);
     }
@@ -119,7 +121,7 @@ const crmRoutes = new Elysia({ prefix: '/crm' })
       return respuestaJson(actividad, 200);
     } catch (error) {
       logger.error(`Error actualizando el estado de la actividad: ${error}`);
-      return respuestaJson({ error: 'No se pudo actualizar la actividad.' }, 500);
+      return respuestaDeError(error, 'No se pudo actualizar la actividad.');
     }
   });
 
