@@ -80,8 +80,7 @@ services without approval.
 
 ## Current API endpoints
 This section is the single source of truth for the API surface — the 
-frontend repo intentionally keeps no copy. The merge-documentation skill 
-appends new endpoints here.
+frontend repo intentionally keeps no copy.
 
 - POST /api/v1/crm/vendedores — create salesperson. Body: nombre, 
   email, telefono, rol. The frontend form sends telefono in E.164; the 
@@ -145,10 +144,8 @@ verified against src/index.ts and the route modules. They previously
 omitted it, which is why the audit flagged them as wrong.)
 
 ## Integration notes
-The frontend (valya_front) needs to connect to these routes. New endpoints 
-will likely be needed — for example, listing all contacts, all opportunities, 
-and updating pipeline status. Follow existing patterns in crmRoutes.ts when 
-adding new routes.
+The frontend (valya_front) calls these routes through its API client. 
+Follow existing patterns in crmRoutes.ts when adding new routes.
 
 ## Per-repo docs
 This repo carries its own docs/ folders at the repo root: docs/audit/, 
@@ -162,16 +159,12 @@ feature in docs/stories/) live in the valya_front repository.
   Claude responses are in English.
 - Use `bun` commands only — never `npm` or `node`.
 - Test changes locally with `bun run dev` before committing.
-- When a task requires changes to more than one file, list all affected 
-  files and wait for approval before proceeding.
 
 ## Git workflow
 - Default branch: `master`. Always work on a branch:
   `feature/`, `fix/`, `docs/` (docs/ and CLAUDE.md only) or `explore/`
   (reading code, no changes), short and hyphenated.
-- Never push or open a PR without explicit approval. Exception: the
-  end-session, code-review and merge-documentation skills push
-  documentation-only commits after passing their docs-only self-check.
+- Never push or open a PR without explicit approval.
 - Pull requests: write the title and description in Spanish, so the
   backend developer (johpaz) can follow them.
 - If something goes wrong with git: stop, explain in plain English, and
@@ -192,30 +185,12 @@ This repo contains Vercel deployment configuration (vercel.json). Do not
 modify deployment configuration unless explicitly asked.
 
 ## Documentation rules
-
-### What to document
-- New API endpoints added or modified, including their purpose 
-  and expected inputs/outputs
-- Changes to the database models or schema
-- Dependencies added to the project
-- Environment variables added to .env.example
-- Bugs discovered and how they were fixed
-- Anything the backend developer clarifies about how the agent works
-
-### When to document
-- After completing any task, before ending the session
-- When discovering something about the codebase that wasn't 
-  previously known
-- When a decision is made that future sessions should know about
-
-### How to document
-- Keep entries concise — one or two lines maximum
-- Always show the user the proposed documentation update and wait 
-  for approval before writing it
-- Never remove or overwrite existing documentation without 
-  explicit approval from the user
-- Add a date to any new entries in this format: YYYY-MM-DD
-- New API endpoints should be added to the "Current API endpoints" 
-  section in this format:
+- Keep entries concise (one or two lines). Date new entries `YYYY-MM-DD`.
+- New API endpoints go in "Current API endpoints" in this format:
   `- METHOD /path/endpoint — description (added YYYY-MM-DD)`
-- If unsure whether something is worth documenting, ask the user
+- /build-feature proposes CLAUDE.md updates (new endpoints, schema changes,
+  environment variables, dependencies, decisions, patterns) when it writes a
+  merge record, and makes them after approval. It reports mismatches between
+  this file and the code; it never rewrites an existing entry on its own.
+- When the backend developer clarifies how the agent works, propose a line
+  for this file.
